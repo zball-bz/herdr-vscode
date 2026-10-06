@@ -153,7 +153,7 @@ impl HerdrWindow {
                 ScrollbackResponse::PaneCopySearch(result) => Ok(result),
                 _ => Err(herdr_client::Error::ResponseType),
             });
-            if let Some(range) = bar.search.answer(&request, answer) {
+            if let Some(range) = bar.search.answer(&request, answer.map_err(Into::into)) {
                 self.reveal_find_match(range, cx);
             }
             cx.notify();
@@ -195,7 +195,7 @@ impl HerdrWindow {
         };
         match inbox.send(|| handle.copy_search(&bar.boot_id, &params)) {
             Ok(request) => bar.search.sent(request, &params, step, Instant::now()),
-            Err(error) => bar.search.send_failed(&error),
+            Err(error) => bar.search.send_failed(&error.into()),
         }
         cx.notify();
     }

@@ -2,6 +2,7 @@ use super::*;
 use crate::protocol::{
     FrameData, SurfaceGraphicsPlacement, SurfaceGraphicsSource, SurfaceGraphicsTarget,
 };
+use crate::protocol::{SurfaceGraphicsAsset, SurfaceGraphicsFormat};
 
 fn key(image_id: u32, format: SurfaceGraphicsFormat) -> SurfaceGraphicsAssetKey {
     let data_len = match format {

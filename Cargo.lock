@@ -3452,6 +3452,7 @@ dependencies = [
  "gpui-pre-platform",
  "gpui-wry",
  "herdr-client",
+ "herdr-pane-view",
  "image",
  "lb-wry",
  "nix",
@@ -3491,6 +3492,26 @@ dependencies = [
  "url",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "herdr-pane-view"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gpui-pre",
+ "herdr-protocol",
+ "image",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "toml 1.1.6+spec-1.1.0",
+ "tracing",
+ "unicode-segmentation",
+ "unicode-width",
+ "url",
+ "web-time",
 ]
 
 [[package]]

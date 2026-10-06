@@ -1,5 +1,5 @@
 [workspace]
-members  = ["crates/herdr-client", "crates/herdr-gpui", "crates/herdr-protocol"]
+members  = ["crates/herdr-client", "crates/herdr-gpui", "crates/herdr-pane-view", "crates/herdr-protocol"]
 resolver = "2"
 
 [workspace.package]
@@ -44,6 +44,7 @@ gpui-wry             = "=0.6.6"
 # The same wry gpui-wry builds on; it does not re-export the builder.
 wry                  = { package = "lb-wry", version = "=0.53.3" }
 herdr-client         = { path = "crates/herdr-client" }
+herdr-pane-view      = { path = "crates/herdr-pane-view" }
 herdr-protocol       = { path = "crates/herdr-protocol" }
 interprocess         = "2.4.2"
 image                = { default-features = false, features = ["gif", "jpeg", "png", "webp"], version = "0.25.10" }

@@ -296,3 +296,5 @@ fn a_replaced_connection_retires_link_requests_unanswered(cx: &mut gpui::TestApp
     // The daemon may have run a handler for the old click, so nothing opens.
     assert!(cx.opened_url().is_none());
 }
+
+mod terminal_clicks;

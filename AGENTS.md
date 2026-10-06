@@ -24,10 +24,11 @@ Closing or detaching the GUI must leave the daemon and its terminals running.
 | --- | --- |
 | `crates/herdr-protocol` | Generation-1 wire types, framing, validation, and atomic surface patches |
 | `crates/herdr-client` | Discovery, socket worker, session transitions, ordered commands, and client-local activity projection |
-| `crates/herdr-gpui` | Native UI, connection bridge, presentation state, semantic input, geometry, and painting |
+| `crates/herdr-pane-view` | Pane surface painting, selection, links, find and copy-mode models, and the `PaneView` element; GPUI and protocol only, so it also builds for `wasm32` |
+| `crates/herdr-gpui` | Native UI, connection bridge, presentation state, menus, sidebar, and window chrome |
 | `crates/test-support/sandbox.rs` | Shared isolated process setup for opt-in integration tests; not a production crate |
 
-- Keep dependency direction from UI to client to protocol. Protocol/client code must not depend on GPUI.
+- Keep dependency direction from UI to client to protocol. Protocol/client code must not depend on GPUI; `herdr-pane-view` depends on GPUI and protocol only, never on the socket client.
 - Keep session transitions separate from socket scheduling, and connection ownership separate from window rendering.
 - Reuse `ConnectionBridge`, domain targets, geometry helpers, and the test sandbox rather than duplicating their policies.
 - **File size limit: 1,000 lines.** No Rust, Python, shell, or Swift file may exceed it,

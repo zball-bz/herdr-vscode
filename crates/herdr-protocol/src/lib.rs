@@ -9,6 +9,8 @@ mod clipboard;
 mod codec;
 mod error;
 mod frame;
+mod scrollback;
+mod surface_images;
 mod wire;
 
 pub use clipboard::{
@@ -20,4 +22,13 @@ pub use codec::{
     write_message,
 };
 pub use error::{Error, Result};
+pub use scrollback::{
+    CopyMotion, CopyMotionParams, CopyMotionResult, CopySearchParams, CopySearchResult,
+    EndpointErrorCode, MAX_SEARCH_QUERY_BYTES, RequestFailure, ScrollbackResponse, SearchDirection,
+    SelectionReadParams, SelectionResult, TextPoint, TextRange, decode_scrollback_response,
+};
+pub use surface_images::{
+    MAX_IMAGE_BYTES, MAX_IMAGE_SIDE, MAX_IMAGES, MAX_PLACEMENTS, SurfaceImage, SurfaceImages,
+    valid_asset,
+};
 pub use wire::*;

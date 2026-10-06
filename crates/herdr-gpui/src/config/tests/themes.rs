@@ -184,7 +184,7 @@ fn default_palette_and_builtins() -> anyhow::Result<()> {
 
 #[test]
 fn ghostty_colors_and_ignored_settings() -> anyhow::Result<()> {
-    let theme = Theme::parse_ghostty(
+    let theme = theme::parse_ghostty(
         "# comment\nbackground = #123aBC\nforeground=abcdef\n\
              palette = 0 = #010203\npalette=255=fefefe\npalette=0=040506\n\
              font-size = nonsense\nconfig-file = /do/not/read\nignored line",
@@ -195,7 +195,7 @@ fn ghostty_colors_and_ignored_settings() -> anyhow::Result<()> {
     assert_eq!(theme.palette[0], 0x040506);
     assert_eq!(theme.palette[255], 0xfefefe);
     assert_eq!(
-        Theme::parse_ghostty("cursor-color=#ffffff")?.cursor,
+        theme::parse_ghostty("cursor-color=#ffffff")?.cursor,
         0xffffff
     );
     Ok(())
@@ -214,7 +214,7 @@ fn ghostty_errors_have_line_numbers() {
         "background",
         "foreground=#12345678",
     ] {
-        let result = Theme::parse_ghostty(&format!("# comment\n{line}"));
+        let result = theme::parse_ghostty(&format!("# comment\n{line}"));
         assert!(
             matches!(result, Err(Error::ThemeLine { line: 2, .. })),
             "{result:?}"

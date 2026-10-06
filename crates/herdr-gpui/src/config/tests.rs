@@ -9,6 +9,7 @@ mod github;
 mod keybindings;
 mod loading;
 mod notification_settings;
+mod option_as_alt;
 mod preferences;
 mod sidebar_settings;
 mod system_themes;

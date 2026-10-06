@@ -479,7 +479,8 @@ fn report(result: crate::Result<String>) -> ExitCode {
                 crate::notifications::safe_text(&error.to_string(), 4096)
             );
             ExitCode::from(match error {
-                crate::Error::InvalidBrowserUrl | crate::Error::InvalidLocalPage => 2,
+                crate::Error::View(herdr_pane_view::Error::InvalidBrowserUrl)
+                | crate::Error::InvalidLocalPage => 2,
                 crate::Error::ControlUnavailable { .. } => EXIT_NOT_RUNNING,
                 _ => 1,
             })

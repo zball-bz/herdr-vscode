@@ -11,18 +11,7 @@ use std::{
 #[path = "performance_native.rs"]
 mod native;
 
-#[derive(Default, Debug, Clone, Copy)]
-pub(crate) struct Counts {
-    pub shapes: usize,
-    pub quads: usize,
-    pub glyphs: usize,
-    pub decorations: usize,
-    pub paint_errors: usize,
-    pub metric_shapes: usize,
-    pub paints: usize,
-    pub sidebar_renders: usize,
-}
-impl Global for Counts {}
+pub(crate) use herdr_pane_view::Counts;
 
 fn surface() -> PaneSurfaceFrame {
     let lines = [

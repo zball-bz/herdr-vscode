@@ -156,10 +156,10 @@ fn oversized_queries_are_refused_before_sending() {
         content_revision: 0,
         previous: None,
     };
-    params.validate().unwrap();
+    validate_search(&params).unwrap();
     params.query.push('x');
     assert!(matches!(
-        params.validate().unwrap_err(),
+        validate_search(&params).unwrap_err(),
         Error::Endpoint {
             code: EndpointErrorCode::QueryTooLarge,
             ..

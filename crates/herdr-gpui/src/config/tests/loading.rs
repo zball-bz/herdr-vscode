@@ -336,7 +336,7 @@ fn errors_retain_paths_categories_and_parser_sources() -> anyhow::Result<()> {
         Err(Error::InvalidFontSize("ui"))
     ));
 
-    let error = Theme::parse_ghostty("# ignored\npalette=bad=ffffff")
+    let error = theme::parse_ghostty("# ignored\npalette=bad=ffffff")
         .err()
         .ok_or_else(|| anyhow::anyhow!("accepted invalid palette index"))?;
     assert_eq!(
@@ -358,7 +358,7 @@ fn errors_retain_paths_categories_and_parser_sources() -> anyhow::Result<()> {
             .is_some_and(|source| source.is::<std::num::ParseIntError>())
     );
     assert!(matches!(
-        Theme::parse_ghostty("palette=256=ffffff"),
+        theme::parse_ghostty("palette=256=ffffff"),
         Err(Error::ThemeLine {
             source: ThemeParseError::PaletteIndexOutOfRange,
             ..

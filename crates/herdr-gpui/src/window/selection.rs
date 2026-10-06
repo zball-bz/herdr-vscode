@@ -193,7 +193,7 @@ impl HerdrWindow {
         };
         let connection = &self.endpoints[self.selected_endpoint].connection;
         let result = if !self.live.supports_selection_read {
-            Err(crate::Error::SelectionOffscreen)
+            Err(herdr_pane_view::Error::SelectionOffscreen.into())
         } else if let (Some(handle), Some(snapshot)) = (&connection.handle, &self.live.snapshot) {
             let inbox = connection.scrollback.clone();
             let sent = inbox
@@ -336,7 +336,7 @@ impl HerdrWindow {
             Ok(ScrollbackResponse::PaneSelection(_)) => {
                 self.local_error = Some(format!(
                     "Selection not copied: {}",
-                    crate::Error::SelectionSize
+                    herdr_pane_view::Error::SelectionSize
                 ));
             }
             Ok(_) => {

@@ -236,7 +236,7 @@ impl HerdrWindow {
                 ScrollbackResponse::PaneCopyMotion(result) => Ok(result),
                 _ => Err(herdr_client::Error::ResponseType),
             });
-            match state.mode.answer(&request, answer) {
+            match state.mode.answer(&request, answer.map_err(Into::into)) {
                 Ok(true) => self.reveal_copy_cursor(cx),
                 Ok(false) => {}
                 Err(error) => self.local_error = Some(format!("Copy mode motion failed: {error}")),

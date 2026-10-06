@@ -7,169 +7,14 @@
 //! top row is `max_offset_from_bottom - offset_from_bottom`.
 
 use crate::{ClientHandle, Error, Result, method::Method};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 
-/// The daemon refuses longer queries with `query_too_large`; checking here
-/// keeps an oversized paste from reaching the wire at all.
-pub const MAX_SEARCH_QUERY_BYTES: usize = 4096;
-
-/// A cell in screen-buffer coordinates. Declared row first so the derived
-/// order is reading order.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub struct TextPoint {
-    pub row: u32,
-    pub col: u16,
-}
-
-/// A span of cells. `end` is inclusive: it names the last cell of the match,
-/// which for a wide glyph is its second column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TextRange {
-    pub start: TextPoint,
-    pub end: TextPoint,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SearchDirection {
-    /// Toward newer output: the first match starting after the origin.
-    Forward,
-    /// Toward older output: the last match ending before the origin.
-    Backward,
-}
-
-/// `pane.copy_search` parameters. The origin is `previous` when given (its
-/// end searching forward, its start backward), otherwise `cursor`. A search
-/// that finds nothing past the origin wraps around.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CopySearchParams {
-    pub pane_id: String,
-    pub query: String,
-    pub direction: SearchDirection,
-    pub cursor: TextPoint,
-    /// The pane content the coordinates were read from. The daemon answers
-    /// `stale_content` when its terminal has moved on since.
-    pub content_revision: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub previous: Option<TextRange>,
-}
-
-/// `pane.copy_search` result. `matches` is a bounded window around the
-/// current match; `total` counts every match in the pane.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CopySearchResult {
-    pub pane_id: String,
-    pub content_revision: u64,
-    pub matches: Vec<TextRange>,
-    pub total: u64,
-    /// Index of the current match within `matches`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub current: Option<u32>,
-    /// Index of the current match among all `total` matches, top first.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub current_global: Option<u64>,
-}
-
-impl CopySearchResult {
-    /// The current match, when the daemon named one inside `matches`.
-    pub fn current_match(&self) -> Option<TextRange> {
-        self.current
-            .and_then(|index| self.matches.get(usize::try_from(index).ok()?))
-            .copied()
-    }
-}
-
-/// A copy-mode motion the daemon resolves against the terminal's own text:
-/// word classes, line ends, and paragraphs, which a client cannot know from
-/// the painted cells alone. Spellings match Herdr's `PaneCopyMotion`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CopyMotion {
-    LineEnd,
-    FirstNonBlank,
-    NextWordStart,
-    PreviousWordStart,
-    NextWordEnd,
-    NextBigWordStart,
-    PreviousBigWordStart,
-    NextBigWordEnd,
-    PreviousParagraph,
-    NextParagraph,
-}
-
-/// `pane.copy_motion` parameters.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CopyMotionParams {
-    pub pane_id: String,
-    pub cursor: TextPoint,
-    pub motion: CopyMotion,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_revision: Option<u64>,
-}
-
-/// `pane.copy_motion` result: where the motion lands. A motion with nowhere
-/// to go answers the cursor it was given.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CopyMotionResult {
-    pub pane_id: String,
-    pub cursor: TextPoint,
-    pub content_revision: u64,
-}
-
-/// `pane.selection.read` parameters: the cells from `anchor` to `cursor`,
-/// both inclusive, in either order. Without a revision the daemon reads its
-/// live terminal, which is what an explicit selection wants.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SelectionReadParams {
-    pub pane_id: String,
-    pub anchor: TextPoint,
-    pub cursor: TextPoint,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub content_revision: Option<u64>,
-}
-
-/// `pane.selection.read` result.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SelectionResult {
-    pub pane_id: String,
-    pub text: String,
-}
-
-/// The result of any scrollback method, by its `type` tag.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ScrollbackResponse {
-    PaneCopySearch(CopySearchResult),
-    PaneCopyMotion(CopyMotionResult),
-    PaneSelection(SelectionResult),
-    /// `pane.edit_scrollback` answers a bare acknowledgement.
-    Ok {},
-}
-
-/// An endpoint error code this client acts on. Codes are open-ended on the
-/// wire, so anything else is kept verbatim for display.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EndpointErrorCode {
-    /// The pane's content changed after the request's revision was read.
-    StaleContent,
-    PaneNotFound,
-    QueryTooLarge,
-    Other(String),
-}
-
-impl From<String> for EndpointErrorCode {
-    fn from(code: String) -> Self {
-        match code.as_str() {
-            "stale_content" => Self::StaleContent,
-            "pane_not_found" => Self::PaneNotFound,
-            "query_too_large" => Self::QueryTooLarge,
-            _ => Self::Other(code),
-        }
-    }
-}
+pub use crate::protocol::{
+    CopyMotion, CopyMotionParams, CopyMotionResult, CopySearchParams, CopySearchResult,
+    EndpointErrorCode, MAX_SEARCH_QUERY_BYTES, ScrollbackResponse, SearchDirection,
+    SelectionReadParams, SelectionResult, TextPoint, TextRange,
+};
 
 #[derive(Deserialize)]
 struct ErrorBody {
@@ -185,24 +30,31 @@ struct Envelope {
     error: Option<ErrorBody>,
 }
 
-impl CopySearchParams {
-    /// Rejects what the daemon would refuse before it is queued.
-    pub fn validate(&self) -> Result<()> {
-        if self.query.len() > MAX_SEARCH_QUERY_BYTES {
-            return Err(Error::Endpoint {
-                code: EndpointErrorCode::QueryTooLarge,
-                message: "copy search query is too large".into(),
-            });
+impl From<Error> for crate::protocol::RequestFailure {
+    fn from(error: Error) -> Self {
+        match error {
+            Error::Endpoint { code, message } => Self::Endpoint { code, message },
+            other => Self::Client(other.to_string()),
         }
-        Ok(())
     }
+}
+
+/// Rejects a search the daemon would refuse before it is queued.
+pub fn validate_search(params: &CopySearchParams) -> Result<()> {
+    if params.query.len() > MAX_SEARCH_QUERY_BYTES {
+        return Err(Error::Endpoint {
+            code: EndpointErrorCode::QueryTooLarge,
+            message: "copy search query is too large".into(),
+        });
+    }
+    Ok(())
 }
 
 impl ClientHandle {
     /// Queues `pane.copy_search`, returning the request ID its response
     /// carries.
     pub fn copy_search(&self, boot_id: &str, params: &CopySearchParams) -> Result<String> {
-        params.validate()?;
+        validate_search(params)?;
         self.request(
             boot_id,
             Method::PaneCopySearch,

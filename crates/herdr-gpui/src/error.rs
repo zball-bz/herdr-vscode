@@ -22,6 +22,8 @@ fn daemon_error_message(error: &serde_json::Value) -> &str {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    View(#[from] herdr_pane_view::Error),
     #[error("Could not finish saving Settings: {0}")]
     SettingsSave(#[source] std::sync::Arc<Error>),
     #[error("palette.project_roots must contain at most 16 nonempty paths of at most 8192 bytes")]
@@ -70,12 +72,6 @@ pub enum Error {
         "PR lookup requires your owned local session socket or a saved SSH device. Other socket locations are unsupported."
     )]
     PrUntrustedEndpoint,
-    #[error("The selected pane is no longer on screen.")]
-    SelectionStale,
-    #[error("Selection is too large to copy.")]
-    SelectionSize,
-    #[error("The selection reaches rows the pane no longer shows.")]
-    SelectionOffscreen,
     #[error("File drop exceeds 256 paths or 64 KiB of quoted text.")]
     FileDropSize,
     #[error("Dropped paths must be UTF-8.")]
@@ -110,10 +106,6 @@ pub enum Error {
     ImageReadTimeout,
     #[error("SVG clipboard images are not supported. Use PNG, JPEG, GIF, WebP, BMP, or TIFF.")]
     ImageFormat,
-    #[error("Could not decode an image a pane placed.")]
-    PaneImageDecode(#[source] image::ImageError),
-    #[error("An image a pane placed exceeds the decoded size limit.")]
-    PaneImageLimit,
     #[error("Clipboard content exceeds the {limit}-byte limit.")]
     ClipboardSize { limit: usize },
     #[error("Clipboard text is not valid UTF-8.")]
@@ -470,8 +462,6 @@ pub enum Error {
     MissingStateRoot,
     #[error("{} exceeds {limit} bytes", path.display())]
     StateFileSize { path: PathBuf, limit: u64 },
-    #[error("Browser tabs open only http and https addresses with a host, of at most 8 KiB.")]
-    InvalidBrowserUrl,
     #[error(
         "Local pages must be a plain file in a folder that is not hidden and does not hold your home directory."
     )]
