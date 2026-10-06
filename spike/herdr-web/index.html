@@ -29,7 +29,12 @@ const host = {
     if (event.type === 'status') console.info('herdr:', event.text);
   },
 };
-run({ fonts, family: config.family, fallbacks: config.fallbacks, theme: 'Catppuccin Mocha', tabId: new URLSearchParams(location.search).get('tab') ?? undefined }, host);
+// ?light=1: black on white; ?size=N: font size in px (for rendering comparisons).
+const params = new URLSearchParams(location.search);
+const theme = params.get('light') ? { background: 0xffffff, foreground: 0x000000, cursor: 0x000000, palette: Array(16).fill(null) } : 'Catppuccin Mocha';
+if (params.get('light')) document.documentElement.style.background = document.body.style.background = '#fff';
+const fontSize = params.get('size') ? Number(params.get('size')) : undefined;
+run({ fonts, family: config.family, fallbacks: config.fallbacks, theme, fontSize, cellHeight: fontSize && Math.round(fontSize * 1.43), tabId: params.get('tab') ?? undefined }, host);
 socket.onopen = () => host_event(JSON.stringify({ type: 'open' }));
 socket.onmessage = (event) => deliver(new Uint8Array(event.data));
 socket.onclose = (event) => host_event(JSON.stringify({ type: 'closed', reason: event.reason || 'socket closed' }));

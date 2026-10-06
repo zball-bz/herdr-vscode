@@ -30,6 +30,8 @@ opt-level = 3
 lto = true
 codegen-units = 1
 
-# The IME candidate window follows the caret (see ../vendor/gpui-pre-web/PATCHES.md).
+# The IME candidate window follows the caret, and text is drawn as heavy as the
+# browser's own (see ../vendor/*/PATCHES.md).
 [patch.crates-io]
 gpui-pre-web = { path = "../vendor/gpui-pre-web" }
+gpui-pre-wgpu = { path = "../vendor/gpui-pre-wgpu" }

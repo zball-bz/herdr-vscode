@@ -1,5 +1,5 @@
 use crate::canvas_fallback::{CanvasFontFallback, classify_canvas_fallback};
-use crate::canvas_text::{self, CanvasTextMetrics};
+use crate::canvas_text::{self, CanvasTextMetrics, Raster};
 use crate::glyph_cache::{CanvasGlyph, GlyphCache};
 use crate::run_replacements::{Replacement, apply_replacements, collect_candidates};
 use anyhow::{Context as _, Result, ensure};
@@ -13,6 +13,7 @@ use parking_lot::RwLock;
 use std::{borrow::Cow, collections::HashMap, sync::Arc};
 
 mod browser;
+mod tone;
 
 // Cosmic's font IDs index its loaded-font vector. Keep browser IDs in a disjoint namespace.
 const CANVAS_FONT_BIT: usize = 1 << (usize::BITS - 1);
@@ -414,20 +415,27 @@ impl PlatformTextSystem for WebTextSystem {
         bounds: Bounds<DevicePixels>,
     ) -> Result<(Size<DevicePixels>, Vec<u8>)> {
         let Some(font) = self.canvas_font(params.font_id) else {
-            return self.native.rasterize_glyph(params, bounds);
+            let (size, mut pixels) = self.native.rasterize_glyph(params, bounds)?;
+            if !params.is_emoji && !params.subpixel_rendering {
+                tone::correct_raw_coverage(&mut pixels, params.dilation);
+            }
+            return Ok((size, pixels));
         };
         let glyph = self.canvas_glyph(params.font_id, params.glyph_id)?;
         let css_font = font.css_font(params.font_size * params.scale_factor, glyph.color)?;
-        let mut pixels = canvas_text::rasterize(
+        let gray = tone::gray(params.dilation);
+        let raster = match (glyph.color, params.subpixel_rendering) {
+            (true, _) => Raster::Color,
+            (false, true) => Raster::Lcd(gray),
+            (false, false) => Raster::Mask(gray),
+        };
+        let pixels = canvas_text::rasterize(
             &glyph.text,
             &css_font,
             bounds,
             subpixel_offset(params),
-            glyph.color,
+            raster,
         )?;
-        if params.subpixel_rendering && !glyph.color {
-            pixels = pixels.into_iter().flat_map(|alpha| [alpha; 4]).collect();
-        }
         Ok((bounds.size, pixels))
     }
 
@@ -470,16 +478,21 @@ impl PlatformTextSystem for WebTextSystem {
         layout
     }
 
-    fn recommended_rendering_mode(&self, font_id: FontId, font_size: Pixels) -> TextRenderingMode {
-        if self.canvas_font(font_id).is_some() {
-            TextRenderingMode::Grayscale
+    /// Browser fonts follow the browser, which antialiases for the display's
+    /// subpixels where the system does. Loaded fonts stay grayscale: their
+    /// raw swash coverage is corrected for that only (`tone`).
+    fn recommended_rendering_mode(&self, font_id: FontId, _font_size: Pixels) -> TextRenderingMode {
+        if self.canvas_font(font_id).is_some() && canvas_text::lcd_text() {
+            TextRenderingMode::Subpixel
         } else {
-            self.native.recommended_rendering_mode(font_id, font_size)
+            TextRenderingMode::Grayscale
         }
     }
 
+    /// The color's luminance level, so each level gets masks of its own
+    /// (`tone`).
     fn glyph_dilation_for_color(&self, color: Hsla) -> u8 {
-        self.native.glyph_dilation_for_color(color)
+        tone::level(color)
     }
 }
 

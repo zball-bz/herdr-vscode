@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result, anyhow, ensure};
 use gpui::{Bounds, DevicePixels};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use wasm_bindgen::{JsCast as _, JsValue};
 use web_sys::{OffscreenCanvas, OffscreenCanvasRenderingContext2d};
 
@@ -9,6 +9,10 @@ const MAX_RASTER_PIXELS: usize = 4 * 1024 * 1024;
 
 thread_local! {
     static CANVAS: RefCell<Option<TextCanvas>> = const { RefCell::new(None) };
+    /// An opaque canvas, where the browser antialiases text for the display's
+    /// subpixels (LCD) when the system does.
+    static OPAQUE_CANVAS: RefCell<Option<TextCanvas>> = const { RefCell::new(None) };
+    static LCD_TEXT: Cell<Option<bool>> = const { Cell::new(None) };
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -26,7 +30,7 @@ struct TextCanvas {
 }
 
 impl TextCanvas {
-    fn new() -> Result<Self> {
+    fn new(opaque: bool) -> Result<Self> {
         let canvas = OffscreenCanvas::new(1, 1)
             .map_err(|error| anyhow!("creating text OffscreenCanvas: {error:?}"))?;
         let options = js_sys::Object::new();
@@ -38,6 +42,12 @@ impl TextCanvas {
         )
         .map_err(|error| anyhow!("setting Canvas readback option: {error:?}"))?;
         ensure!(assigned, "Canvas readback option could not be set");
+        if opaque {
+            let assigned =
+                js_sys::Reflect::set(&options, &JsValue::from_str("alpha"), &JsValue::FALSE)
+                    .map_err(|error| anyhow!("setting Canvas opacity option: {error:?}"))?;
+            ensure!(assigned, "Canvas opacity option could not be set");
+        }
         let context = canvas
             .get_context_with_context_options("2d", &options)
             .map_err(|error| anyhow!("getting OffscreenCanvas 2D context: {error:?}"))?
@@ -69,12 +79,20 @@ impl TextCanvas {
 }
 
 fn with_canvas<T>(operation: impl FnOnce(&mut TextCanvas) -> Result<T>) -> Result<T> {
-    CANVAS.with(|canvas| {
+    with_canvas_of(&CANVAS, false, operation)
+}
+
+fn with_canvas_of<T>(
+    key: &'static std::thread::LocalKey<RefCell<Option<TextCanvas>>>,
+    opaque: bool,
+    operation: impl FnOnce(&mut TextCanvas) -> Result<T>,
+) -> Result<T> {
+    key.with(|canvas| {
         let mut canvas = canvas
             .try_borrow_mut()
             .context("Canvas text renderer was called reentrantly")?;
         if canvas.is_none() {
-            *canvas = Some(TextCanvas::new()?);
+            *canvas = Some(TextCanvas::new(opaque)?);
         }
         operation(
             canvas
@@ -158,12 +176,48 @@ pub(crate) fn font_metrics(css_font: &str) -> Result<CanvasFontMetrics> {
     })
 }
 
+/// How `rasterize` draws a glyph and what it returns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Raster {
+    /// The glyph's own colors, as BGRA.
+    Color,
+    /// Coverage, one byte a pixel, drawn in this gray: the browser's
+    /// rasterizer shapes coverage for the luminance of the text's fill.
+    Mask(u8),
+    /// Coverage of each color channel, as BGRA, drawn in this gray on an
+    /// opaque canvas, where the browser antialiases for the display's
+    /// subpixels (LCD) when the system does.
+    Lcd(u8),
+}
+
+/// Whether the browser draws text on an opaque canvas with LCD antialiasing,
+/// as it does where the system's font settings ask for subpixel rendering.
+pub(crate) fn lcd_text() -> bool {
+    if let Some(known) = LCD_TEXT.with(Cell::get) {
+        return known;
+    }
+    let bounds = Bounds {
+        origin: gpui::point(DevicePixels(0), DevicePixels(-20)),
+        size: gpui::size(DevicePixels(24), DevicePixels(26)),
+    };
+    let lcd = rasterize("m", "20px sans-serif", bounds, (0., 0.), Raster::Lcd(255)).is_ok_and(
+        |pixels| {
+            pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel[0].abs_diff(pixel[1]) > 16 || pixel[1].abs_diff(pixel[2]) > 16)
+        },
+    );
+    LCD_TEXT.with(|known| known.set(Some(lcd)));
+    lcd
+}
+
+/// Draws `text` into `bounds` and returns its pixels as `raster` says.
 pub(crate) fn rasterize(
     text: &str,
     css_font: &str,
     bounds: Bounds<DevicePixels>,
     subpixel_offset: (f32, f32),
-    color: bool,
+    raster: Raster,
 ) -> Result<Vec<u8>> {
     ensure!(
         subpixel_offset.0.is_finite() && subpixel_offset.1.is_finite(),
@@ -191,7 +245,11 @@ pub(crate) fn rasterize(
         .checked_mul(4)
         .context("Canvas text raster byte count overflow")?;
 
-    with_canvas(|canvas| {
+    let (key, opaque) = match raster {
+        Raster::Lcd(_) => (&OPAQUE_CANVAS, true),
+        Raster::Color | Raster::Mask(_) => (&CANVAS, false),
+    };
+    with_canvas_of(key, opaque, |canvas| {
         // Shrink before growing so intermediate canvas sizes obey the pixel cap.
         if height < canvas.canvas.height() {
             canvas.canvas.set_height(height);
@@ -203,9 +261,32 @@ pub(crate) fn rasterize(
             canvas.canvas.set_height(height);
         }
         canvas.configure(css_font)?;
-        canvas
-            .context
-            .clear_rect(0.0, 0.0, f64::from(width), f64::from(height));
+        match raster {
+            Raster::Color => canvas
+                .context
+                .clear_rect(0.0, 0.0, f64::from(width), f64::from(height)),
+            Raster::Mask(gray) => {
+                canvas
+                    .context
+                    .clear_rect(0.0, 0.0, f64::from(width), f64::from(height));
+                canvas
+                    .context
+                    .set_fill_style_str(&format!("rgb({gray} {gray} {gray})"));
+            }
+            Raster::Lcd(gray) => {
+                // Coverage is read back against whichever of black and white
+                // lies farther from the text's gray (`lcd_coverage`).
+                canvas
+                    .context
+                    .set_fill_style_str(if gray >= 128 { "black" } else { "white" });
+                canvas
+                    .context
+                    .fill_rect(0.0, 0.0, f64::from(width), f64::from(height));
+                canvas
+                    .context
+                    .set_fill_style_str(&format!("rgb({gray} {gray} {gray})"));
+            }
+        }
         canvas
             .context
             .fill_text(
@@ -224,18 +305,41 @@ pub(crate) fn rasterize(
             "Canvas text raster returned {} bytes, expected {byte_count}",
             pixels.len()
         );
-        if color {
-            for pixel in pixels.chunks_exact_mut(4) {
-                pixel.swap(0, 2);
+        match raster {
+            Raster::Color => {
+                for pixel in pixels.chunks_exact_mut(4) {
+                    pixel.swap(0, 2);
+                }
+                Ok(pixels)
             }
-            Ok(pixels)
-        } else {
-            let mut alpha = Vec::new();
-            alpha
-                .try_reserve_exact(pixel_count)
-                .context("allocating Canvas text alpha mask")?;
-            alpha.extend(pixels.chunks_exact(4).map(|pixel| pixel[3]));
-            Ok(alpha)
+            Raster::Mask(_) => {
+                let mut alpha = Vec::new();
+                alpha
+                    .try_reserve_exact(pixel_count)
+                    .context("allocating Canvas text alpha mask")?;
+                alpha.extend(pixels.chunks_exact(4).map(|pixel| pixel[3]));
+                Ok(alpha)
+            }
+            Raster::Lcd(gray) => {
+                for pixel in pixels.chunks_exact_mut(4) {
+                    let [red, green, blue] =
+                        [pixel[0], pixel[1], pixel[2]].map(|value| lcd_coverage(value, gray));
+                    pixel.copy_from_slice(&[blue, green, red, red.max(green).max(blue)]);
+                }
+                Ok(pixels)
+            }
         }
     })
+}
+
+/// A channel's coverage from its value after text of `gray` was blended onto
+/// black (light text) or white (dark text) at that coverage.
+fn lcd_coverage(value: u8, gray: u8) -> u8 {
+    let (value, gray) = (u32::from(value), u32::from(gray));
+    let coverage = if gray >= 128 {
+        value * 255 / gray
+    } else {
+        (255 - value) * 255 / (255 - gray)
+    };
+    u8::try_from(coverage).unwrap_or(u8::MAX)
 }

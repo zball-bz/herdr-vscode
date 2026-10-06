@@ -158,7 +158,12 @@ async function display() {
   // No GPU on Xvfb: let WebGL2 fall back to SwiftShader instead of being blocklisted.
   // HERDR_E2E_GPU=1 renders on the real GPU through ANGLE's Vulkan backend instead.
   const gl = process.env.HERDR_E2E_GPU ? ['--use-angle=vulkan'] : ['--enable-unsafe-swiftshader'];
-  return { args: ['--ozone-platform=x11', '--ignore-gpu-blocklist', ...gl], env: { DISPLAY: `:${number}`, WAYLAND_DISPLAY: '', XDG_SESSION_TYPE: 'x11', GDK_BACKEND: 'x11' } };
+  // HERDR_E2E_SCALE=1.75 runs at a fractional display scale, as on a HiDPI desktop.
+  const scale = process.env.HERDR_E2E_SCALE ? [`--force-device-scale-factor=${process.env.HERDR_E2E_SCALE}`] : [];
+  return {
+    args: ['--ozone-platform=x11', '--ignore-gpu-blocklist', ...gl, ...scale],
+    env: { DISPLAY: `:${number}`, WAYLAND_DISPLAY: '', XDG_SESSION_TYPE: 'x11', GDK_BACKEND: 'x11' },
+  };
 }
 
 async function launchCode() {

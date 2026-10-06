@@ -163,6 +163,12 @@ herdr-gpui 除已知 21 个环境相关失败外全部通过。
   - **服务端调度**：一个 pane 被查看且持续刷屏时，其他连接的回显要多等一帧（4 → 20 ms）。两个浏览器进程分别连接也一样，刷屏的 pane 没人看时则不受影响，所以出在 herdr 服务端的画面调度。
   - **Sarasa 超级 TTC**：编辑器字体用它（830 MB）时，VS Code 自身多占约 2.7 GB；同一字体用单独的 TTF 安装时没有这个问题。
 - **链接悬停与路径查找**：`PaneView` 发出 `LinkHovered`，内容是指针下的链接和它在窗口里的像素范围，按住按键时会撤回；herdr-web 把它转成 `linkHover` 事件。悬停工具栏由宿主自己画：VS Code 插件在 webview 里用 DOM 画，样式取 VS Code 悬停框的主题色。GPUI 的事件只挂在 canvas 上，所以点工具栏不会传到终端。路径链接按 cwd → 工作区文件夹 → 后缀搜索的顺序查找，原因是 Claude Code 在 `cd` 进子目录后打印的路径是相对那个子目录的（真实日志里，打印出来的 `src/api/activity.ts` 实际在工作目录下的一个子项目里）。
+- **文字渲染（2026-10-06）**：在 175% 缩放下与 VS Code 自己的终端（xterm.js WebGL）逐像素对比，herdr 的字发虚、偏粗，彩色字和深色主题下尤其明显。原因有三处，都已修正：
+  - **格子不在设备像素上**：格宽是字体的 advance（7 px），175% 下是 12.25 个设备像素，每一列的字形落在不同的亚像素相位上，竖笔画时清时糊。现在格宽和行高都取整到设备像素（`terminal_painter::snap_to_device`，原生客户端同样受益），和 xterm.js、Konsole 的做法一样；字形是否超宽仍按字体自己的 advance 判断。
+  - **灰度校正做了两遍**：Canvas 光栅化时 Chrome（Skia）已经按填充色的亮度调整过覆盖率，原来却一律用白色画蒙版，GPUI 的着色器再按 gamma 1.8、对比度 1 校正一遍。结果是中间色调和浅色字的边缘覆盖率高出约 30%。现在 `glyph_dilation_for_color` 返回颜色的亮度档（Skia 的 8 档），字形按档缓存并用该档的灰色光栅化；vendored gpui-pre-wgpu 在 wasm 上关掉着色器的校正。加载了字节的字体（swash 的原始覆盖率）改在 CPU 上做原来的校正。
+  - **没有次像素抗锯齿**：系统 fontconfig 是 `rgba=rgb`，VS Code 的终端和编辑器都是 LCD 抗锯齿。不透明 Canvas 上 Chrome 会按系统设置画 LCD 字形，按字的亮度选黑或白底读回每个通道的覆盖率；WebGL2 没有双源混合，所以 gpui-pre-wgpu 分两遍画次像素字形（先按覆盖率压暗、再按覆盖率加上字色，`shaders_component_alpha.wgsl`），结果与双源混合相同。系统不做 LCD 抗锯齿时（如 macOS）自动退回灰度。
+  - **结果**（175%，Sarasa Term SC 14px，与 xterm 的墨量比）：白底黑字 41.3 / 40.9，深色主题正文 30.8 / 30.7、绿色 27.9 / 28.0，字形位置完全一致。浅色主题的彩色字仍比 xterm 浅，是因为 VS Code 的 `terminal.integrated.minimumContrastRatio` 会把颜色调暗，不是渲染差异。
+  - **测量注意**：Playwright 的 `deviceScaleFactor` 模拟下 `devicePixelContentBoxSize` 不随缩放变化，canvas 会按 1.75 倍再被拉伸，不能用来比较分数缩放；要用真实 VS Code 加 `--force-device-scale-factor`（e2e 的 `HERDR_E2E_SCALE=1.75`）。
 - **滚动条条带与配色方案（2026-10-06）**：
   - **滚动条**：`PaneView` 在右边缘画了一条 Konsole 风格的滚动条（`pane_view/strip.rs`），由箭头按钮、轨道和滑块组成，按住可连续滚动，Shift+点击跳转。
     - herdr 只在主屏幕为滚动条预留一列，并且一直留着，没有回滚内容时也不例外；备用屏幕会把这一列还给程序。

@@ -26,7 +26,8 @@ code --install-extension herdr-pane-0.0.1.vsix
 | `extension/` | VS Code 扩展（TypeScript）：树、面板、连接（本机 socket / SSH 桥）、设置页与配色、链接 |
 | `spike/herdr-web/` | webview 里运行的 WASM：GPUI 浏览器后端 + `herdr-pane-view` + 协议核心 |
 | `spike/herdr-core/` | 不依赖 IO 的 herdr 客户端协议核心（扩展宿主用它的 Node 版） |
-| `spike/vendor/gpui-pre-web/` | 打过补丁的 GPUI 浏览器后端，补丁见 `PATCHES.md`：浏览器字体、输入法位置、GPU 上下文丢失通知 |
+| `spike/vendor/gpui-pre-web/` | 打过补丁的 GPUI 浏览器后端，补丁见 `PATCHES.md`：浏览器字体及其按亮度、LCD 的光栅化，输入法位置，GPU 上下文丢失通知 |
+| `spike/vendor/gpui-pre-wgpu/` | 打过补丁的 GPUI wgpu 渲染器，补丁见 `PATCHES.md`：网页里不重复做文字的 gamma 校正，WebGL2 上分两遍画次像素（LCD）文字 |
 | `herdr-gpui/` | [penso/herdr-gpui](https://github.com/penso/herdr-gpui)（连同提交历史导入），把终端组件拆成了原生和浏览器共用的 `herdr-pane-view` crate |
 | `bench/` | 终端吞吐、渲染和延迟的测量脚本及结果 |
 

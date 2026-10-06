@@ -1014,7 +1014,7 @@ impl PlatformWindow for WebWindow {
             .state
             .borrow()
             .renderer
-            .supports_dual_source_blending()
+            .supports_subpixel_rendering()
     }
 
     fn gpu_specs(&self) -> Option<GpuSpecs> {
