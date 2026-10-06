@@ -14,7 +14,7 @@
 从 [Releases](../../releases) 下载 `herdr-pane-*.vsix`，然后：
 
 ```sh
-code --install-extension herdr-pane-0.0.1.vsix
+code --install-extension herdr-pane-0.0.2.vsix
 ```
 
 运行程序的机器上要装 herdr。远端机器还需要 sshd 和免密钥登录，详见 [extension/README.md](extension/README.md#远端机器)。

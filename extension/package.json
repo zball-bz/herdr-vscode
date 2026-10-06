@@ -2,7 +2,7 @@
   "name": "herdr-pane",
   "displayName": "Herdr Pane",
   "description": "herdr terminal-multiplexer panes as VS Code editor panels, with a workspace/agent tree; rendered by herdr-web (GPUI on WebGPU/WebGL2).",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "herdr",
   "private": true,
   "license": "Apache-2.0",
