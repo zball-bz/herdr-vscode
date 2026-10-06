@@ -250,7 +250,7 @@ impl PaneView {
                 f32::from(local.x),
                 f32::from(local.y),
                 self.cell_width,
-                self.style.cell_height,
+                self.cell_height,
             ) {
                 cx.notify();
             }

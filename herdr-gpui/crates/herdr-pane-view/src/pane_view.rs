@@ -16,7 +16,9 @@ use crate::{
     terminal::{
         InputTarget, WheelAccumulator, input_area, input_cursor_bounds, popup_origin, viewport,
     },
-    terminal_painter::{Highlight, ImageTarget, PlacedImages, TerminalPainter, Tint},
+    terminal_painter::{
+        Highlight, ImageTarget, PlacedImages, TerminalPainter, Tint, snap_to_device,
+    },
     theme::Theme,
 };
 use find_bar::FindBar;
@@ -130,6 +132,8 @@ pub struct PaneView {
     report_all: bool,
     bounds: Bounds<Pixels>,
     cell_width: f32,
+    /// The style's cell height, snapped to device pixels when painted.
+    cell_height: f32,
     reported: Option<(ClientSurfaceSize, u32, u32)>,
     /// IME composition not yet committed.
     marked: String,
@@ -169,6 +173,7 @@ impl Focusable for PaneView {
 impl PaneView {
     pub fn new(style: PaneViewStyle, cx: &mut Context<Self>) -> Self {
         Self {
+            cell_height: style.cell_height,
             style,
             painter: Rc::new(RefCell::new(TerminalPainter::default())),
             focus: cx.focus_handle(),
@@ -297,7 +302,7 @@ impl PaneView {
     }
 
     fn cell_height(&self) -> f32 {
-        self.style.cell_height
+        self.cell_height
     }
 
     /// The measured cell width in logical pixels, once painted.
@@ -444,9 +449,10 @@ impl PaneView {
 impl Render for PaneView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let style = self.style.clone();
+        self.cell_height = snap_to_device(style.cell_height, window.scale_factor());
         self.painter.borrow_mut().set_appearance(
             style.font_size,
-            style.cell_height,
+            self.cell_height,
             style.theme.clone(),
         );
         self.cell_width = self
@@ -463,7 +469,7 @@ impl Render for PaneView {
         self.painter.borrow_mut().set_edge_margin(margin);
         self.sync_ime_anchor(window);
         let cell_width = self.cell_width;
-        let cell_height = style.cell_height;
+        let cell_height = self.cell_height;
         let entity = cx.entity();
         let input_entity = entity.clone();
         let painter = self.painter.clone();

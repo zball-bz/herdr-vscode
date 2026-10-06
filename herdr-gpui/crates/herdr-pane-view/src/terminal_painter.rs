@@ -138,6 +138,8 @@ pub struct TerminalPainter {
     // Resolved foreground includes reverse, dim and hidden; only bold/italic
     // affect shaping. Decorations remain at exact cell-grid coordinates.
     glyphs: GlyphCache,
+    /// The font's own advance, measured once per font and size; `cell_width`
+    /// snaps it to device pixels.
     cell_width: Option<f32>,
     diagnostics: PaintDiagnostics,
     images: ImageCache,
@@ -198,6 +200,18 @@ fn link_bounds(frame: &FrameData, rows: &[(u16, std::ops::Range<u16>)]) -> Optio
         width: right - left,
         height: bottom - top + 1,
     })
+}
+
+/// `length` logical pixels rounded to whole device pixels at `scale`, at least
+/// one. Grid cells sized so start on device pixels, so at a fractional scale
+/// every column draws its glyph at the same subpixel phase and stays as sharp
+/// as the first, as xterm.js and native terminals snap theirs.
+pub fn snap_to_device(length: f32, scale: f32) -> f32 {
+    if scale > 0. {
+        (length * scale).round().max(1.) / scale
+    } else {
+        length
+    }
 }
 
 fn decoration_offsets(cell: &CellData, cell_height: f32) -> impl Iterator<Item = f32> + '_ {
@@ -321,9 +335,8 @@ impl TerminalPainter {
         let Some(base) = &self.config else {
             anyhow::bail!("missing font config");
         };
-        let cell_width = self.cell_width.unwrap_or_default();
         for (style, symbol, cached) in self.glyphs.iter() {
-            let fresh = self.shape_cell(base, style, &symbol, cell_width, window);
+            let fresh = self.shape_cell(base, style, &symbol, window);
             // Includes native glyph IDs/positions, font IDs and metrics.
             if format!("{fresh:?}") != format!("{cached:?}") {
                 anyhow::bail!("cached glyph/style mismatch: {symbol:?}");
@@ -334,18 +347,14 @@ impl TerminalPainter {
 
     /// Glyphs for one cell symbol, shrunk to its cells if the font draws it
     /// wider. Color is left to `paint_glyphs`, so one shape serves every color
-    /// the symbol is drawn in.
-    fn shape_cell(
-        &self,
-        font: &Font,
-        style: usize,
-        symbol: &str,
-        cell_width: f32,
-        window: &Window,
-    ) -> ShapedLine {
+    /// the symbol is drawn in. Cells are measured by the font's own advance:
+    /// the device-pixel snap moves a cell's edge by under a pixel, which a
+    /// glyph may overlap, as in xterm.js.
+    fn shape_cell(&self, font: &Font, style: usize, symbol: &str, window: &Window) -> ShapedLine {
         let line = self.shape(font, style, symbol, self.font_size, window);
         let width = f32::from(line.width);
-        match glyphs::fitted_size(width, self.font_size, glyphs::cells(symbol), cell_width) {
+        let advance = self.cell_width.unwrap_or_default();
+        match glyphs::fitted_size(width, self.font_size, glyphs::cells(symbol), advance) {
             Some(fitted) => self.shape(font, style, symbol, fitted, window),
             None => line,
         }
@@ -390,7 +399,13 @@ impl TerminalPainter {
         }
     }
 
+    /// The grid's cell width in logical pixels: the font's advance, snapped to
+    /// whole device pixels (`snap_to_device`).
     pub fn cell_width(&mut self, font: &Font, window: &Window, cx: &mut App) -> f32 {
+        snap_to_device(self.advance(font, window, cx), window.scale_factor())
+    }
+
+    fn advance(&mut self, font: &Font, window: &Window, cx: &mut App) -> f32 {
         self.configure(font);
         if let Some(width) = self.cell_width {
             return width;
@@ -853,7 +868,7 @@ impl TerminalPainter {
                     {
                         counts.shapes += 1;
                     }
-                    let line = self.shape_cell(font, style, &cell.symbol, cell_width, window);
+                    let line = self.shape_cell(font, style, &cell.symbol, window);
                     if cached && self.glyphs.has_room() {
                         self.glyphs.insert(style, &cell.symbol, line)
                     } else {

@@ -363,6 +363,7 @@ fn the_browser_option_commits_plain_keys_from_the_key_event(cx: &mut TestAppCont
     assert_eq!(sent.len(), 2, "nothing is committed twice");
 }
 
+mod cell_metrics;
 mod link_hover;
 mod scrollbar;
 mod strip;
