@@ -1,0 +1,13 @@
+**
+!package.json
+!README.md
+!LICENSE
+!dist/extension.js
+!dist/webview.js
+!dist/settings.js
+!media/herdr.svg
+!media/herdr-web/herdr_web.js
+!media/herdr-web/herdr_web_bg.wasm
+!media/herdr-core/herdr_core.js
+!media/herdr-core/herdr_core_bg.wasm
+!media/status/*.svg

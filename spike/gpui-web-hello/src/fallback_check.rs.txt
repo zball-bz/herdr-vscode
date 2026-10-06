@@ -1,0 +1,33 @@
+// Fallback check: CJK through a family's FontFallbacks vs. the CJK family directly.
+use gpui::{App, Context, FontFallbacks, IntoElement, ParentElement, Render, Styled, Window, WindowOptions, div, prelude::*, rgb};
+use wasm_bindgen::prelude::*;
+
+static MONO: &[u8] = include_bytes!("/usr/local/share/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf");
+static CJK: &[u8] = include_bytes!("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
+const SAMPLE: &str = "abc 界面渲染 こんにちは 한국어 ─│┌┐ █▓▒░";
+
+struct View;
+
+impl Render for View {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let mut chained = gpui::font("JetBrains Mono");
+        chained.fallbacks = Some(FontFallbacks::from_fonts(vec!["Noto Sans CJK SC".into()]));
+        let _ = &chained;
+        let line = |label: &str, font: gpui::Font| {
+            div().flex().gap_4().child(div().w(gpui::px(220.)).child(label.to_owned())).child(div().font(font).child(SAMPLE))
+        };
+        div().size_full().bg(rgb(0x1e1e2e)).text_color(rgb(0xcdd6f4)).font_family("JetBrains Mono").text_size(gpui::px(16.)).p_4().flex().flex_col().gap_2()
+            .child(line("mono + fallbacks", chained))
+    }
+}
+
+#[wasm_bindgen(start)]
+pub fn start() {
+    console_error_panic_hook::set_once();
+    gpui_web::init_logging();
+    let platform = std::rc::Rc::new(gpui_web::WebPlatform::new(false));
+    gpui::Application::with_platform(platform).run(|cx: &mut App| {
+        cx.text_system().add_fonts(vec![std::borrow::Cow::Borrowed(MONO), std::borrow::Cow::Borrowed(CJK)]).unwrap();
+        cx.open_window(WindowOptions::default(), |_, cx| cx.new(|_| View)).unwrap();
+    });
+}

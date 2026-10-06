@@ -1,0 +1,23 @@
+// Loads index.html in Chrome (real GPU) and screenshots the GPUI canvas.
+import http from 'node:http';
+import { readFileSync, existsSync } from 'node:fs';
+import { extname, join } from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(new URL('../../bench/package.json', import.meta.url));
+const { chromium } = require('playwright-core');
+const ROOT = new URL('.', import.meta.url).pathname;
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm' };
+const server = http.createServer((q, r) => { const p = join(ROOT, new URL(q.url, 'http://x').pathname); if (!existsSync(p)) return r.writeHead(404).end(); r.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream' }).end(readFileSync(p)); });
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--enable-gpu', '--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-unsafe-webgpu'] });
+const page = await browser.newPage({ viewport: { width: 1000, height: 200 } });
+const logs = [];
+page.on('console', (m) => logs.push(`${m.type()}: ${m.text()}`));
+page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
+await page.goto(`http://127.0.0.1:${server.address().port}/index.html`);
+await page.waitForFunction(() => window.__initMs !== undefined, null, { timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(1500);
+console.log('init ms:', await page.evaluate(() => window.__initMs));
+console.log(logs.slice(0, 15).join('\n'));
+await page.screenshot({ path: join(ROOT, 'shot.png') });
+await browser.close(); server.close();

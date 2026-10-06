@@ -1,0 +1,4 @@
+node_modules/
+cache/
+shot-*.png
+*.json.out

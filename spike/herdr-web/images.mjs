@@ -1,0 +1,23 @@
+// Runs kitty_demo.py in the pane and screenshots herdr-web's rendering of the images.
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(new URL('../../bench/package.json', import.meta.url));
+const { chromium } = require('playwright-core');
+const ROOT = new URL('.', import.meta.url).pathname;
+const server = spawn(process.execPath, [join(ROOT, 'serve.mjs'), process.argv[2]], { stdio: ['ignore', 'pipe', 'inherit'] });
+const url = await new Promise((r) => server.stdout.once('data', (d) => r(String(d).trim())));
+const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--enable-gpu', '--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-unsafe-webgpu'] });
+const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
+const logs = [];
+page.on('console', (m) => { if (/error|warn/i.test(m.type()) && !/404|preferred by this device/.test(m.text())) logs.push(`${m.type()}: ${m.text().slice(0, 300)}`); });
+page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
+await page.goto(url);
+await page.waitForFunction(() => window.__herdrPaintedRevision > 0, null, { timeout: 30000 });
+await page.mouse.click(450, 240);
+await page.keyboard.type(`clear; python3 ${join(ROOT, 'kitty_demo.py')}`);
+await page.keyboard.press('Enter');
+await page.waitForTimeout(2500);
+await page.screenshot({ path: join(ROOT, 'shot-images.png') });
+console.log(logs.slice(0, 10).join('\n') || 'no page errors');
+await browser.close(); server.kill();

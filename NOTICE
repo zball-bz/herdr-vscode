@@ -1,0 +1,17 @@
+herdr-vscode
+Copyright 2026 the herdr-vscode contributors
+
+This product is licensed under the Apache License, Version 2.0; the full text
+is in LICENSE. It includes:
+
+- herdr-gpui/: Herdr GPUI (https://github.com/penso/herdr-gpui), Copyright 2026
+  Fabien Penso, Apache-2.0, imported with its history at revision 22e2394. The
+  commit after it extracts the herdr-pane-view crate and changes it for browser
+  hosts; the commit message lists the changes. Its own NOTICE
+  (herdr-gpui/NOTICE) covers the third-party material it contains, including
+  code adapted from Herdr (https://github.com/herdrdev/herdr).
+
+- spike/vendor/gpui-pre-web/: gpui-pre-web 0.3.6, a snapshot of the gpui_web
+  crate of Zed (https://github.com/zed-industries/zed), Apache-2.0
+  (spike/vendor/gpui-pre-web/LICENSE-APACHE). Local modifications are listed in
+  spike/vendor/gpui-pre-web/PATCHES.md.

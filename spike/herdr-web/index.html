@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>herdr-web</title>
+<style>html, body { margin: 0; height: 100%; background: #1e1e2e; overflow: hidden; }</style>
+</head>
+<body>
+<script type="module">
+// Standalone browser host: a WebSocket to serve.mjs, which bridges to the daemon socket.
+import init, { run, deliver, host_event } from './pkg/herdr_web.js';
+const t0 = performance.now();
+const config = await (await fetch('./fonts.json')).json();
+const [fonts] = await Promise.all([
+  Promise.all(config.files.map(async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer()))),
+  init(),
+]);
+const socket = new WebSocket(`ws://${location.host}/ws`);
+socket.binaryType = 'arraybuffer';
+window.__herdrEvents = [];
+const host = {
+  send: (bytes) => socket.readyState === WebSocket.OPEN && socket.send(bytes),
+  event: (json) => {
+    const event = JSON.parse(json);
+    window.__herdrEvents.push(event);
+    if (event.type === 'requestPaste') navigator.clipboard?.readText().then((text) => host_event(JSON.stringify({ type: 'paste', text }))).catch(() => {});
+    if (event.type === 'copy') navigator.clipboard?.writeText(event.text).catch(() => {});
+    if (event.type === 'openLink' && event.kind === 'web') window.open(event.target, '_blank', 'noopener');
+    if (event.type === 'status') console.info('herdr:', event.text);
+  },
+};
+run({ fonts, family: config.family, fallbacks: config.fallbacks, theme: 'Catppuccin Mocha', tabId: new URLSearchParams(location.search).get('tab') ?? undefined }, host);
+socket.onopen = () => host_event(JSON.stringify({ type: 'open' }));
+socket.onmessage = (event) => deliver(new Uint8Array(event.data));
+socket.onclose = (event) => host_event(JSON.stringify({ type: 'closed', reason: event.reason || 'socket closed' }));
+window.addEventListener('paste', (event) => {
+  const text = event.clipboardData?.getData('text/plain');
+  if (text) host_event(JSON.stringify({ type: 'paste', text }));
+});
+window.__initMs = performance.now() - t0;
+</script>
+</body>
+</html>

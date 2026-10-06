@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000}</style></head>
+<body><script type="module">
+import init from './pkg/gpui_web_hello.js';
+const t0 = performance.now();
+await init();
+window.__initMs = performance.now() - t0;
+</script></body></html>

@@ -1,0 +1,877 @@
+{
+  "name": "herdr-pane",
+  "displayName": "Herdr Pane",
+  "description": "herdr terminal-multiplexer panes as VS Code editor panels, with a workspace/agent tree; rendered by herdr-web (GPUI on WebGPU/WebGL2).",
+  "version": "0.0.1",
+  "publisher": "herdr",
+  "private": true,
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onWebviewPanel:herdr.pane"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "herdr",
+          "title": "Herdr",
+          "icon": "media/herdr.svg"
+        }
+      ]
+    },
+    "views": {
+      "herdr": [
+        {
+          "id": "herdr.sessions",
+          "name": "Workspaces",
+          "icon": "media/herdr.svg",
+          "contextualTitle": "Herdr"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "herdr.newTerminal",
+        "title": "New Terminal",
+        "category": "Herdr",
+        "icon": "$(add)"
+      },
+      {
+        "command": "herdr.newTerminalToSide",
+        "title": "New Terminal to the Side",
+        "category": "Herdr",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "herdr.openPane",
+        "title": "Open Pane",
+        "category": "Herdr",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "herdr.openPaneToSide",
+        "title": "Open Pane to the Side",
+        "category": "Herdr",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "herdr.renamePane",
+        "title": "Rename Pane",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.closePane",
+        "title": "Close Pane (Terminate)",
+        "category": "Herdr",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "herdr.newWorkspace",
+        "title": "New Workspace",
+        "category": "Herdr",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "herdr.renameWorkspace",
+        "title": "Rename Workspace",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.closeWorkspace",
+        "title": "Close Workspace (Terminate All Panes)",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.focus",
+        "title": "Focus Terminal",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.reconnect",
+        "title": "Reconnect",
+        "category": "Herdr",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "herdr.reload",
+        "title": "Reload Panels",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.copy",
+        "title": "Copy",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.paste",
+        "title": "Paste",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.find",
+        "title": "Find",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.findNext",
+        "title": "Find Next",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.findPrevious",
+        "title": "Find Previous",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.closeFind",
+        "title": "Close Find",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.scrollToBottom",
+        "title": "Scroll to Bottom",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.clearSelection",
+        "title": "Clear Selection",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.noop",
+        "title": "Swallow Key (internal)",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.openSettings",
+        "title": "Settings",
+        "category": "Herdr",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "herdr.addMachine",
+        "title": "Add Remote Machine…",
+        "category": "Herdr",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "herdr.removeMachine",
+        "title": "Remove Machine",
+        "category": "Herdr",
+        "icon": "$(close)"
+      },
+      {
+        "command": "herdr.reconnectMachine",
+        "title": "Reconnect Machine",
+        "category": "Herdr",
+        "icon": "$(debug-restart)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "herdr.noop",
+          "when": "false"
+        },
+        {
+          "command": "herdr.removeMachine",
+          "when": "false"
+        },
+        {
+          "command": "herdr.reconnectMachine",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "herdr.newTerminal",
+          "when": "view == herdr.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "herdr.newWorkspace",
+          "when": "view == herdr.sessions",
+          "group": "navigation@2"
+        },
+        {
+          "command": "herdr.reconnect",
+          "when": "view == herdr.sessions",
+          "group": "navigation@3"
+        },
+        {
+          "command": "herdr.openSettings",
+          "when": "view == herdr.sessions",
+          "group": "navigation@5"
+        },
+        {
+          "command": "herdr.addMachine",
+          "when": "view == herdr.sessions",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "herdr.openPaneToSide",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "inline"
+        },
+        {
+          "command": "herdr.openPane",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "1_open@1"
+        },
+        {
+          "command": "herdr.openPaneToSide",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "1_open@2"
+        },
+        {
+          "command": "herdr.renamePane",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "herdr.closePane",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "3_close@1"
+        },
+        {
+          "command": "herdr.newTerminal",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "inline"
+        },
+        {
+          "command": "herdr.newTerminal",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "1_new@1"
+        },
+        {
+          "command": "herdr.newTerminalToSide",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "1_new@2"
+        },
+        {
+          "command": "herdr.renameWorkspace",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "herdr.closeWorkspace",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "3_close@1"
+        },
+        {
+          "command": "herdr.newTerminal",
+          "when": "view == herdr.sessions && viewItem =~ /^herdrMachine/",
+          "group": "inline@1"
+        },
+        {
+          "command": "herdr.reconnectMachine",
+          "when": "view == herdr.sessions && viewItem =~ /^herdrMachine/",
+          "group": "inline@2"
+        },
+        {
+          "command": "herdr.newTerminal",
+          "when": "view == herdr.sessions && viewItem =~ /^herdrMachine/",
+          "group": "1_new@1"
+        },
+        {
+          "command": "herdr.newWorkspace",
+          "when": "view == herdr.sessions && viewItem =~ /^herdrMachine/",
+          "group": "1_new@2"
+        },
+        {
+          "command": "herdr.reconnectMachine",
+          "when": "view == herdr.sessions && viewItem =~ /^herdrMachine/",
+          "group": "2_connection@1"
+        },
+        {
+          "command": "herdr.removeMachine",
+          "when": "view == herdr.sessions && viewItem == herdrMachine",
+          "group": "3_remove@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "herdr.newTerminalToSide",
+          "when": "activeWebviewPanelId == 'herdr.pane'",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Herdr",
+      "properties": {
+        "herdr.session": {
+          "type": "string",
+          "default": "default",
+          "pattern": "^[A-Za-z0-9._-]{1,64}$",
+          "markdownDescription": "herdr session to attach to. `default` uses `$XDG_CONFIG_HOME/herdr/herdr-client.sock`, any other name `$XDG_CONFIG_HOME/herdr/sessions/<name>/herdr-client.sock`. Ignored when `#herdr.socketPath#` or the `HERDR_CLIENT_SOCKET_PATH` environment variable is set."
+        },
+        "herdr.socketPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Explicit path of herdr's binary *client protocol* socket (`herdr-client.sock`, not the JSON API socket `herdr.sock`). Overrides `#herdr.session#` and the environment."
+        },
+        "herdr.remote": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "SSH target (`host`, `user@host` or `ssh://user@host:port`) of a remote herdr. Empty attaches to the local daemon. Uses noninteractive `ssh` (BatchMode): keys, agent or a ControlMaster must already work; `#herdr.session#` names the remote session.",
+          "markdownDeprecationMessage": "Use `#herdr.machines#` (the **Add Remote Machine** button in the Workspaces view). A target here is shown as one more remote machine."
+        },
+        "herdr.fontFallbacks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Font families tried after the terminal font stack, for glyphs it lacks. Panels draw with the browser's fonts, which already fall back to installed fonts for CJK, emoji and other scripts; list families here only to prefer particular ones."
+        },
+        "herdr.editorKeys": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default": {
+            "ctrl+shift+p": "workbench.action.showCommands",
+            "f1": "workbench.action.showCommands",
+            "ctrl+`": "workbench.action.terminal.toggleTerminal",
+            "ctrl+shift+`": "workbench.action.terminal.new"
+          },
+          "markdownDescription": "Keys a herdr panel never sends to the terminal while it has focus: the webview intercepts each one before the terminal sees it and runs the given VS Code command instead. Everything else (Ctrl+P included) goes to the terminal. Set a key to `null` to send it to the terminal anyway, or add one, e.g. `\"ctrl+p\": \"workbench.action.quickOpen\"`. Copy, paste and find chords (Ctrl+Shift+C/V/F) are handled by the pane itself. Syntax: modifiers `ctrl`, `shift`, `alt`, `meta`/`cmd` joined with `+`, then a key name as in VS Code keybindings (`a`, `f1`, `` ` ``)."
+        },
+        "herdr.retainContextWhenHidden": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Keep a hidden panel's herdr-web instance (and its connection) alive, as VS Code keeps its own terminals: switching back shows it at once (about 40 ms instead of 350 ms or more), and a hidden panel receives no surfaces, so it costs no CPU, only a few MB of memory. Off: a hidden panel is torn down and reattaches when shown again."
+        },
+        "herdr.colorScheme": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The color scheme herdr panels use, by name, from `#herdr.colorSchemes#`. Empty: the VS Code theme's terminal colors. Manage schemes with **Herdr: Settings**."
+        },
+        "herdr.colorSchemes": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Terminal color schemes for herdr panels, as **Herdr: Settings** imports and edits them.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "background",
+              "foreground",
+              "palette"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "background": {
+                "type": "string"
+              },
+              "foreground": {
+                "type": "string"
+              },
+              "cursor": {
+                "type": "string"
+              },
+              "cursorText": {
+                "type": "string"
+              },
+              "selection": {
+                "type": "string"
+              },
+              "palette": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 8,
+                "maxItems": 16,
+                "description": "ANSI colors: 0–7 normal, 8–15 bright."
+              },
+              "locked": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Colors the readability optimizer keeps."
+              },
+              "source": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "herdr.machines": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Remote machines whose herdr the Workspaces view shows, reached over SSH (the **Add Remote Machine** button adds one). Each needs herdr installed there (on PATH or in `~/.local/bin`) and an SSH login that asks for no password; herdr starts there on first connect.",
+          "items": {
+            "type": "object",
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name in the Workspaces view (default: the host)."
+              },
+              "target": {
+                "type": "string",
+                "description": "SSH target: user@host, a Host alias from ~/.ssh/config, or ssh://user@host:port."
+              },
+              "session": {
+                "type": "string",
+                "default": "default",
+                "description": "The herdr session on that machine."
+              }
+            }
+          }
+        },
+        "herdr.localMachine": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show this machine's herdr (`#herdr.session#`, `#herdr.socketPath#`) in the Workspaces view. Turn off on a machine that only displays remote ones."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "key": "ctrl+shift+f",
+        "mac": "cmd+f",
+        "command": "herdr.find",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+a",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+b",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+c",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+d",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+e",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+f",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+g",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+h",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+i",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+j",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+k",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+l",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+m",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+n",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+o",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+p",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+q",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+r",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+s",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+t",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+u",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+v",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+w",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+x",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+y",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+z",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+a",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+b",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+c",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+d",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+e",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+f",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+g",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+h",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+i",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+j",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+k",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+l",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+m",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+n",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+o",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+p",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+q",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+r",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+s",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+t",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+u",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+v",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+w",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+x",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+y",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "alt+z",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+a",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+b",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+c",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+d",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+e",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+g",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+h",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+i",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+j",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+k",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+l",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+m",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+n",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+o",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+p",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+q",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+r",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+s",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+t",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+u",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+v",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+w",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+x",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+y",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "ctrl+shift+z",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused"
+      },
+      {
+        "key": "cmd+c",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused && isMac"
+      },
+      {
+        "key": "cmd+v",
+        "command": "herdr.noop",
+        "when": "herdr.paneFocused && isMac"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p .",
+    "sync-web": "node scripts/sync-web.mjs",
+    "keybindings": "node scripts/keybindings.mjs",
+    "test:unit": "node --test test/unit.test.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "package": "npm run sync-web && npm run build && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "1.125.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.28.0",
+    "playwright-core": "1.63.0",
+    "typescript": "^5.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zball-bz/herdr-vscode.git",
+    "directory": "extension"
+  },
+  "homepage": "https://github.com/zball-bz/herdr-vscode"
+}

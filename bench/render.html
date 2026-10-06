@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/node_modules/@xterm/xterm/css/xterm.css">
+<link rel="stylesheet" href="/node_modules/@gespenst/core/dist/index.css">
+<style>
+  html, body { margin: 0; background: #1e1e1e; }
+  #host { width: 1100px; height: 820px; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<script type="module">
+// Render harness: one engine + one workload per page load, driven by render.mjs over CDP.
+const q = new URLSearchParams(location.search);
+const ENGINE = q.get('engine');
+const COLS = 120, ROWS = 40, FONT = 'JetBrains Mono', SIZE = 14;
+const host = document.getElementById('host');
+const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+
+// ---- engine adapters: write(data) and flush() = "everything written is parsed and painted"
+async function makeEngine() {
+  if (ENGINE.startsWith('xterm')) {
+    const { Terminal } = await import('/node_modules/@xterm/xterm/lib/xterm.mjs');
+    const t = new Terminal({ cols: COLS, rows: ROWS, fontFamily: FONT, fontSize: SIZE, scrollback: 1000, allowProposedApi: true });
+    t.open(host);
+    let backend = 'dom';
+    if (ENGINE === 'xterm-webgl') {
+      const { WebglAddon } = await import('/node_modules/@xterm/addon-webgl/lib/addon-webgl.mjs');
+      t.loadAddon(new WebglAddon());
+      backend = 'webgl2';
+    }
+    return {
+      backend,
+      write: (d) => t.write(d),
+      flush: () => new Promise((r) => t.write('', async () => { await nextFrame(); await nextFrame(); r(); })),
+    };
+  }
+  if (ENGINE.startsWith('gespenst')) {
+    const { createTerminal } = await import('/node_modules/@gespenst/core/dist/index.js');
+    const t = await createTerminal({
+      container: host, cols: COLS, rows: ROWS, fontFamily: FONT, fontSizePx: SIZE, scrollbackLines: 1000,
+      worker: ENGINE === 'gespenst-worker' ? 'dedicated' : false,
+      renderer: q.get('renderer') || 'auto',
+    });
+    return {
+      backend: t.renderer.backend + (ENGINE === 'gespenst-worker' ? '+worker' : ''),
+      write: (d) => t.write(d),
+      flush: async () => { await t.writeAsync(''); await nextFrame(); await nextFrame(); },
+    };
+  }
+  if (ENGINE === 'ghostty-web') {
+    const { init, Terminal } = await import('/node_modules/ghostty-web/dist/ghostty-web.js');
+    await init();
+    const t = new Terminal({ cols: COLS, rows: ROWS, fontFamily: FONT, fontSize: SIZE, scrollback: 1000 });
+    t.open(host);
+    return {
+      backend: 'canvas2d',
+      write: (d) => t.write(d),
+      flush: () => new Promise((r) => t.write('\x1b[0m', async () => { await nextFrame(); await nextFrame(); r(); })),
+    };
+  }
+  throw new Error('unknown engine ' + ENGINE);
+}
+
+// ---- workloads (deterministic)
+let seed = 7;
+const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+const words = 'const let return function import export async await if else for while class new this'.split(' ');
+
+function fullScreenFrame(f) {          // every cell changes fg/bg + glyph (btop / DOOM-fire worst case)
+  let s = '\x1b[H';
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      s += `\x1b[38;5;${(x + y + f) & 255};48;5;${(x * 3 + y * 7 + f) & 255}m${String.fromCharCode(33 + ((x + y * 7 + f) % 94))}`;
+    }
+    if (y < ROWS - 1) s += '\r\n';
+  }
+  return s + '\x1b[0m';
+}
+function fgOnlyFrame(f) {             // every cell changes glyph + 256-color fg, default bg (e.g. colored matrix rain)
+  let s = '\x1b[H';
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) s += `\x1b[38;5;${(x + y + f) & 255}m${String.fromCharCode(33 + ((x + y * 7 + f) % 94))}`;
+    if (y < ROWS - 1) s += '\r\n';
+  }
+  return s + '\x1b[0m';
+}
+function tuiFrame(f) {                 // whole-screen redraw of colored text lines (ink/TUI-style repaint)
+  let s = '\x1b[H';
+  for (let y = 0; y < ROWS; y++) {
+    let line = '';
+    while (line.length < COLS - 12) line += words[(y * 13 + f + line.length) % words.length] + ' ';
+    s += `\x1b[${y + 1};1H\x1b[3${(y + f) % 8}m${line}\x1b[0m\x1b[K`;
+  }
+  return s;
+}
+function scrollFrame() {               // a full screen of new lines per frame (fast log tail)
+  let s = '';
+  for (let y = 0; y < ROWS; y++) {
+    let line = `\x1b[3${rnd(8)}m[${rnd(99999)}]\x1b[0m `;
+    while (line.length < 100) line += words[rnd(words.length)] + ' ';
+    s += line + '\r\n';
+  }
+  return s;
+}
+
+async function animate(gen, frames) {
+  const intervals = [];
+  let last = performance.now();
+  for (let f = 0; f < frames; f++) {
+    await nextFrame();
+    const now = performance.now(); intervals.push(now - last); last = now;
+    eng.write(gen(f));
+  }
+  return intervals;
+}
+
+async function flood(totalMB) {        // write as fast as accepted; measure time-to-painted + frame gaps
+  const intervals = [];
+  let running = true, last = performance.now();
+  (async () => { while (running) { await nextFrame(); const n = performance.now(); intervals.push(n - last); last = n; } })();
+  const chunk = []; let size = 0;
+  while (size < 64 * 1024) { const l = scrollFrame(); chunk.push(l); size += l.length; }
+  const data = chunk.join('');
+  const n = Math.ceil(totalMB * 1024 * 1024 / data.length);
+  for (let i = 0; i < n; i++) {
+    eng.write(data);
+    if (i % 16 === 15) await new Promise((r) => setTimeout(r, 0)); // let the engine breathe like an IPC stream would
+  }
+  await eng.flush();
+  running = false;
+  return intervals;
+}
+
+const eng = await makeEngine();
+await eng.flush();
+window.__ready = { backend: eng.backend };
+window.__run = async (workload) => {
+  const t0 = performance.now();
+  let intervals;
+  if (workload === 'fullscreen') intervals = await animate(fullScreenFrame, 300);
+  else if (workload === 'fgonly') intervals = await animate(fgOnlyFrame, 300);
+  else if (workload === 'tui') intervals = await animate(tuiFrame, 600);
+  else if (workload === 'scroll') intervals = await animate(scrollFrame, 600);
+  else if (workload === 'flood') intervals = await flood(16);
+  await eng.flush();
+  return { wallMs: performance.now() - t0, intervals };
+};
+window.__gpuInfo = async () => {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+  const adapter = navigator.gpu ? await navigator.gpu.requestAdapter().catch(() => null) : null;
+  return { webgl: ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : String(!!gl), webgpu: adapter ? (adapter.info?.description || adapter.info?.vendor || 'yes') : 'no' };
+};
+</script>
+</body>
+</html>
