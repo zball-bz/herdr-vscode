@@ -56,7 +56,8 @@ async function until(predicate, timeout = 10000, step = 100) {
 function cleanEnv(extra = {}) {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (/^(VSCODE_|ELECTRON_)/.test(key) || key === 'HERDR_CLIENT_SOCKET_PATH' || key === 'HERDR_SOCKET_PATH') continue;
+    // Inside a herdr pane the shell names that session and pane: the test's herdr is its own.
+    if (/^(VSCODE_|ELECTRON_|HERDR_)/.test(key)) continue;
     env[key] = value;
   }
   return { ...env, ...extra };
@@ -844,7 +845,7 @@ if (process.env.HERDR_E2E_PERF) {
     const { alpha, beta } = await setup();
     await launchCode();
     const { run } = await import('./perf.mjs');
-    await run({ page, codePid: code.pid, alpha, beta, DIR, sleep, until, log, runCommand, treeRows, treeRow, editorTab, herdrFrames, paintedFrame, focusFrame, logLines });
+    await run({ page, codePid: code.pid, alpha, beta, DIR, sleep, until, log, runCommand, treeRows, treeRow, editorTab, herdrFrames, paintedFrame, focusFrame, logLines, herdr, herdrJson, tabLabels });
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

@@ -187,30 +187,63 @@ export async function run(h) {
   note('keystroke → painted echo in the other panel during churn', fmt(await latency(frameB, 10)));
   await sleep(4000);
 
-  // Switching back to a hidden panel.
-  const reattach = [];
-  let current = frameA;
-  for (let i = 0; i < 4; i++) {
-    // Ctrl+P would reach the shell: open a file in alpha's group as a link click does.
-    await h.focusFrame(current);
-    const link = { type: 'openLink', kind: 'path', target: 'sample.txt', paneId: alpha, cwd: join(h.DIR, 'workspace') };
-    await current.evaluate((json) => window.__herdr.host.event(json), JSON.stringify(link));
-    await until(() => page.evaluate(() => document.querySelector('.tabs-container .tab.active')?.textContent?.includes('sample.txt')), 5000);
-    await sleep(1500);
-    const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabs-container .tab')].map((t) => `${t.classList.contains('active') ? '*' : ''}${t.textContent.trim()}`));
-    log(`tabs ${tabs.join(' | ')}; loaded ${Object.keys(await h.herdrFrames()).join(',')}`);
-    t = Date.now();
-    await h.editorTab('alpha').click();
-    const shown = await h.paintedFrame(alpha, 15000);
-    if (!shown) {
-      await page.screenshot({ path: join(h.DIR, 'perf-reattach.png') });
-      log(`alpha did not paint again; loaded ${Object.keys(await h.herdrFrames()).join(',')}`);
-      break;
-    }
-    reattach.push(Date.now() - t);
-    current = shown;
-    await sleep(500);
+  // Panels hidden behind others in one group: open more panes into alpha's
+  // group one after another, so each hides the one before, and measure what the
+  // hidden ones keep. (A link would open beside the terminal and hide nothing.)
+  const EXTRA = 6;
+  const extra = [];
+  for (let i = 1; i <= EXTRA; i++) {
+    const pane = h.herdrJson('workspace', 'create', '--label', `group-h${i}`, '--no-focus').root_pane.pane_id;
+    h.herdr('pane', 'rename', pane, `pane-h${i}`);
+    extra.push(pane);
   }
-  note('switch back to a hidden panel → painted', `${fmt(reattach)}; ${h.logLines(/first paint/).pop()?.replace(/^\S+ /, '')}`);
+  await h.runCommand('Herdr: Focus on Workspaces View');
+  await until(async () => (await h.treeRows()).some((t) => t.includes(`pane-h${EXTRA}`)), 15000);
+  await h.focusFrame(frameA);
+  await sleep(3000);
+  const before = sample(codePid);
+  let opened = 0;
+  for (const [i, pane] of extra.entries()) {
+    await (await h.treeRow(`pane-h${i + 1}`)).click();
+    if (await h.paintedFrame(pane, 15000)) opened++;
+    await sleep(1500);
+  }
+  await sleep(3000);
+  const after = sample(codePid);
+  const loaded = Object.keys(await h.herdrFrames()).length;
+  const grew = totalMB(after) - totalMB(before);
+  note(
+    `${EXTRA} more panels in one group, all but the last hidden`,
+    `${opened} opened, ${loaded} webviews loaded; PSS ${grew >= 0 ? '+' : ''}${grew.toFixed(0)} MB (${(grew / Math.max(1, opened - 1)).toFixed(1)} MB per hidden panel): ${added(before, after)}`,
+  );
+
+  // Switching between two panels of that group: tab click → the shown panel
+  // paints anew (a kept panel resumes its surface; a torn-down one reloads).
+  const paints = async (pane) => {
+    const entry = (await h.herdrFrames())[pane];
+    if (!entry) return undefined;
+    await entry.frame.evaluate(() => (window.__perfBefore = window.__herdrPaints ?? 0)).catch(() => {});
+    return entry.frame;
+  };
+  const switches = [];
+  for (let i = 0; i < 4; i++) {
+    for (const [label, pane] of [['alpha', alpha], [`pane-h${EXTRA}`, extra[EXTRA - 1]]]) {
+      await paints(pane);
+      t = Date.now();
+      await h.editorTab(label).click();
+      const shown = await until(
+        async () => {
+          const entry = (await h.herdrFrames())[pane];
+          // A new document has no mark: it was reloaded and painted from scratch.
+          return entry && (await entry.frame.evaluate(() => (window.__herdrPaints ?? 0) > (window.__perfBefore ?? -1) && window.__herdrPaintedRevision > 0).catch(() => false));
+        },
+        15000,
+        10,
+      );
+      if (shown) switches.push(Date.now() - t);
+      await sleep(800);
+    }
+  }
+  note('switch to a hidden panel in the same group → painted', `${fmt(switches)}; ${h.logLines(/first paint/).pop()?.replace(/^\S+ /, '')}`);
   writeFileSync(join(h.DIR, 'perf.json'), JSON.stringify(results, null, 2));
 }

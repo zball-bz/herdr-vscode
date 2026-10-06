@@ -11,6 +11,11 @@ import * as esbuild from 'esbuild';
 
 const root = new URL('..', import.meta.url).pathname;
 const work = mkdtempSync(join(process.env.HERDR_TEST_TMP ?? tmpdir(), 'h-'));
+// Run inside a herdr pane, the shell names that session's sockets, which the
+// modules under test prefer: they must reach only the sockets the tests make.
+for (const name of Object.keys(process.env)) {
+  if (name.startsWith('HERDR_') && name !== 'HERDR_TEST_TMP') delete process.env[name];
+}
 let m;
 
 before(async () => {
