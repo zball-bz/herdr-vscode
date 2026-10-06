@@ -1,0 +1,35 @@
+[package]
+name = "herdr-pane-view"
+description = "Painting, selection, and link geometry for Herdr pane surfaces, for native and browser GPUI"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow                         = { optional = true, workspace = true }
+gpui.workspace                 = true
+herdr-protocol.workspace       = true
+image.workspace                = true
+serde.workspace                = true
+serde_json.workspace           = true
+thiserror.workspace            = true
+tracing.workspace              = true
+unicode-segmentation.workspace = true
+unicode-width.workspace        = true
+url.workspace                  = true
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+percent-encoding.workspace = true
+web-time = "1"
+
+[dev-dependencies]
+gpui = { features = ["test-support"], workspace = true }
+toml.workspace = true
+
+[features]
+integration-test = ["dep:anyhow"]
+
+[lints]
+workspace = true
