@@ -1,4 +1,5 @@
 mod area;
+mod backgrounds;
 mod glyphs;
 mod graphics;
 mod images;
@@ -6,6 +7,7 @@ mod scrollbar;
 
 use self::area::whole;
 pub use self::area::{Layer, Part, Span, cell_ranges, clip, covers};
+use self::backgrounds::{background_extent, background_spans, span_edges};
 use self::glyphs::GlyphCache;
 use self::graphics::Graphic;
 use self::images::{ImageCache, ImageGeometry, below_text};
@@ -27,28 +29,6 @@ const MATCH_ALPHA: u32 = 0x4d;
 const CURRENT_MATCH_ALPHA: u32 = 0xa6;
 const REPORT_INTERVAL: Duration = Duration::from_secs(5);
 const SLOW_PAINT: Duration = Duration::from_millis(16);
-
-/// How far the edge cells' backgrounds reach: over a remainder narrower than
-/// a cell, plus `margin` to the right, which a host reserves beside the grid
-/// on purpose (`TerminalPainter::set_edge_margin`).
-fn background_extent(
-    grid: Size<Pixels>,
-    available: Size<Pixels>,
-    cell: Size<Pixels>,
-    margin: Pixels,
-) -> Size<Pixels> {
-    let extend = |grid, available, reach| {
-        if available > grid && available - grid < reach {
-            available
-        } else {
-            grid
-        }
-    };
-    size(
-        extend(grid.width, available.width, cell.width + margin),
-        extend(grid.height, available.height, cell.height),
-    )
-}
 
 /// Why a span of cells is tinted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,9 +123,9 @@ pub struct TerminalPainter {
     cell_width: Option<f32>,
     diagnostics: PaintDiagnostics,
     images: ImageCache,
-    /// Width a host keeps right of the grid on purpose, which edge cells'
-    /// backgrounds fill like a sub-cell remainder.
-    edge_margin: f32,
+    /// Widths a host keeps left and right of the grid on purpose, which the
+    /// edge cells' backgrounds fill (the right one like a sub-cell remainder).
+    edge_margins: (f32, f32),
     /// The pane whose scrollbar is under the pointer or being dragged.
     active_scrollbar: Option<String>,
     /// Each image painted, with its z, in paint order.
@@ -166,7 +146,7 @@ impl Default for TerminalPainter {
             cell_width: None,
             diagnostics: PaintDiagnostics::new(Instant::now()),
             images: ImageCache::default(),
-            edge_margin: 0.,
+            edge_margins: (0., 0.),
             active_scrollbar: None,
             #[cfg(test)]
             painted_images: Vec::new(),
@@ -256,37 +236,6 @@ fn paint_glyphs(
     Ok(())
 }
 
-fn background_spans<'a>(
-    row: &'a [CellData],
-    columns: std::ops::Range<usize>,
-    theme: &'a Theme,
-) -> impl Iterator<Item = (usize, usize, u32)> + 'a {
-    // A wide glyph's continuation cell shows the glyph's background, as a host
-    // terminal does: Herdr's ANSI renderer never draws that cell, so its own
-    // background is not meant to be seen.
-    let bg = move |x: usize| {
-        let x = if x > 0 && glyphs::cells(&row[x - 1].symbol) > 1 {
-            x - 1
-        } else {
-            x
-        };
-        cell_colors(&row[x], theme).1
-    };
-    let mut start = columns.start;
-    let stop = columns.end.min(row.len());
-    std::iter::from_fn(move || {
-        (start < stop).then_some(())?;
-        let color = bg(start);
-        let mut end = start + 1;
-        while end < stop && bg(end) == color {
-            end += 1;
-        }
-        let span = (start, end, color);
-        start = end;
-        Some(span)
-    })
-}
-
 /// Where an IME composition sits: at the input cursor, shifted left only as
 /// far as it takes to end inside the grid. Text wider than the grid loses its
 /// start rather than its end, where the IME is editing.
@@ -317,10 +266,10 @@ impl TerminalPainter {
         }
     }
 
-    /// Width the host keeps right of the grid on purpose: edge cells'
-    /// backgrounds fill it, so the app's colors reach the view's edge.
-    pub fn set_edge_margin(&mut self, margin: f32) {
-        self.edge_margin = margin.max(0.);
+    /// Widths the host keeps left and right of the grid on purpose: edge
+    /// cells' backgrounds fill them, so the app's colors reach the view's edges.
+    pub fn set_edge_margins(&mut self, left: f32, right: f32) {
+        self.edge_margins = (left.max(0.), right.max(0.));
     }
 
     #[cfg(feature = "integration-test")]
@@ -530,7 +479,7 @@ impl TerminalPainter {
                 px(f32::from(frame.height) * self.cell_height),
             ),
         );
-        // Only fill a sub-cell remainder (and the host's margin). Retained
+        // Only fill a sub-cell remainder (and the host's margins). Retained
         // frames during resize and mirrored groups must not stretch across
         // whole missing rows/columns. Popups have no remainder; their
         // background stays inside their grid.
@@ -539,9 +488,10 @@ impl TerminalPainter {
                 grid.size,
                 available,
                 size(px(cell_width), px(self.cell_height)),
-                px(self.edge_margin),
+                px(self.edge_margins.1),
             )
         });
+        let lead = px(available.map_or(0., |_| self.edge_margins.0));
         let whole_area;
         let area = match part {
             Some(part) => part.area,
@@ -578,7 +528,11 @@ impl TerminalPainter {
         // layer quads draw before glyphs, so decorations and the cursor take a
         // second layer above the text.
         if draws(Layer::Backgrounds) {
-            window.paint_layer(Bounds::new(origin, background), |window| {
+            let layer = Bounds::new(
+                origin - point(lead, px(0.)),
+                size(background.width + lead, background.height),
+            );
+            window.paint_layer(layer, |window| {
                 // Backgrounds precede all glyphs, including wide graphemes' skip cells.
                 let width = usize::from(frame.width);
                 for range in cell_ranges(frame, area) {
@@ -586,11 +540,8 @@ impl TerminalPainter {
                     let row = &frame.cells[y * width..((y + 1) * width).min(frame.cells.len())];
                     let columns = range.start - y * width..range.end - y * width;
                     let mut paint = |start: usize, end: usize, color| {
-                        let right = if end == usize::from(frame.width) {
-                            background.width
-                        } else {
-                            px(end as f32 * cell_width)
-                        };
+                        let (left, right) =
+                            span_edges(start..end, width, cell_width, lead, background.width);
                         let bottom = if y + 1 == usize::from(frame.height) {
                             background.height
                         } else {
@@ -598,15 +549,8 @@ impl TerminalPainter {
                         };
                         window.paint_quad(fill(
                             Bounds::new(
-                                origin
-                                    + point(
-                                        px(start as f32 * cell_width),
-                                        px(y as f32 * self.cell_height),
-                                    ),
-                                size(
-                                    right - px(start as f32 * cell_width),
-                                    bottom - px(y as f32 * self.cell_height),
-                                ),
+                                origin + point(left, px(y as f32 * self.cell_height)),
+                                size(right - left, bottom - px(y as f32 * self.cell_height)),
                             ),
                             rgb(color),
                         ));

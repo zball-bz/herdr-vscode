@@ -4,6 +4,7 @@ use core::prelude::v1::test;
 mod cells;
 mod composition;
 mod diagnostics;
+mod edge_margins;
 mod glyph_cache;
 mod glyph_fit;
 // Paint counts are recorded only with the integration-test feature.

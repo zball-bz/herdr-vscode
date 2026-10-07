@@ -478,13 +478,16 @@ impl Render for PaneView {
             .borrow_mut()
             .cell_width(&style.font, window, cx);
         // The width the strip reservation adds right of the grid: edge cells'
-        // backgrounds fill it where no strip covers it (the alternate screen).
+        // backgrounds fill it where no strip covers it (the alternate screen),
+        // as the first column's fill the padding left of it.
         let margin = if self.reserve_strip {
             strip::strip_width(self.cell_width) - self.cell_width
         } else {
             0.
         };
-        self.painter.borrow_mut().set_edge_margin(margin);
+        self.painter
+            .borrow_mut()
+            .set_edge_margins(self.padding_left, margin);
         self.sync_ime_anchor(window);
         let cell_width = self.cell_width;
         let cell_height = self.cell_height;
