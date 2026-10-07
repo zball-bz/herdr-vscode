@@ -441,12 +441,14 @@ async function main() {
   const row = herdr('pane', 'read', beta, '--source', 'visible').split('\n').findIndex((line) => line.trim() === 'hello-select');
   const boxB = await (await frameB.frameElement()).boundingBox();
   const cellWidth = await frameB.evaluate(() => window.__herdrCellWidth);
+  const gridX = boxB.x + (await frameB.evaluate(() => window.__herdrPaddingLeft));
   const cellHeight = Number(/cell (\d+)px/.exec(extLog())?.[1] ?? 22);
   const y = boxB.y + row * cellHeight + cellHeight / 2;
+  // Pressed in the padding left of the grid, which counts as its first column.
   await page.mouse.move(boxB.x + 2, y);
   await page.mouse.down();
-  await page.mouse.move(boxB.x + cellWidth * 6, y, { steps: 5 });
-  await page.mouse.move(boxB.x + cellWidth * 12 - 2, y, { steps: 5 });
+  await page.mouse.move(gridX + cellWidth * 6, y, { steps: 5 });
+  await page.mouse.move(gridX + cellWidth * 12 - 2, y, { steps: 5 });
   await page.mouse.up();
   await sleep(300);
   await page.keyboard.press('Control+Shift+C');
@@ -476,7 +478,7 @@ async function main() {
   await sleep(500);
   const anchor = await frameB.evaluate(() => {
     const area = document.querySelector('textarea')?.getBoundingClientRect();
-    return area && { x: area.x, y: area.y, h: area.height, w: window.__herdrCellWidth, ch: window.__herdrCellHeight };
+    return area && { x: area.x - window.__herdrPaddingLeft, y: area.y, h: area.height, w: window.__herdrCellWidth, ch: window.__herdrCellHeight };
   });
   await ime.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
   await page.keyboard.press('Control+U');
@@ -551,13 +553,13 @@ async function main() {
   await until(async () => paneText(beta).includes('\nsubdir/inner.txt'), 3000);
   await sleep(600);
   const shownRows = herdr('pane', 'read', beta, '--source', 'visible').split('\n');
-  const linkCell = await frameB.evaluate(() => ({ width: window.__herdrCellWidth, height: window.__herdrCellHeight }));
+  const linkCell = await frameB.evaluate(() => ({ width: window.__herdrCellWidth, height: window.__herdrCellHeight, pad: window.__herdrPaddingLeft }));
   const hoverRow = async (text) => {
     const at = shownRows.findIndex((line) => line.trim() === text);
     // Read again each time: a group opened beside beta narrows it.
     const boxLinks = await (await frameB.frameElement()).boundingBox();
     await page.mouse.move(boxLinks.x + 1, boxLinks.y + 1);
-    await page.mouse.move(boxLinks.x + linkCell.width * 3.5, boxLinks.y + (at + 0.5) * linkCell.height, { steps: 3 });
+    await page.mouse.move(boxLinks.x + linkCell.pad + linkCell.width * 3.5, boxLinks.y + (at + 0.5) * linkCell.height, { steps: 3 });
     return frameB.locator('#herdr-linkbar.shown').waitFor({ timeout: 4000 }).then(() => true, () => false);
   };
   const toolbarClick = (label) => frameB.locator('#herdr-linkbar.shown button', { hasText: label }).click({ timeout: 3000 });

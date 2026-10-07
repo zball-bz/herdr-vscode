@@ -35,7 +35,8 @@ const check = (name, ok, evidence) => {
 const grid = await page.evaluate(() => ({ w: innerWidth, h: innerHeight }));
 const cellHeight = 20;
 const cw = await page.evaluate(() => window.__herdrCellWidth);
-const at = (col, row) => ({ x: (col + 0.5) * cw, y: (row + 0.5) * cellHeight });
+const pad = await page.evaluate(() => window.__herdrPaddingLeft);
+const at = (col, row) => ({ x: pad + (col + 0.5) * cw, y: (row + 0.5) * cellHeight });
 
 async function run(command) {
   await page.keyboard.type(command);

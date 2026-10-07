@@ -23,7 +23,7 @@ await cdp.send('Input.imeSetComposition', { text: 'nihao', selectionStart: 5, se
 await page.waitForTimeout(400);
 const geometry = await page.evaluate(() => {
   const area = document.querySelector('textarea').getBoundingClientRect();
-  return { area: { x: area.x, y: area.y, h: area.height }, cell: { w: window.__herdrCellWidth, h: window.__herdrCellHeight } };
+  return { area: { x: area.x, y: area.y, h: area.height }, cell: { w: window.__herdrCellWidth, h: window.__herdrCellHeight }, pad: window.__herdrPaddingLeft };
 });
 await page.screenshot({ path: join(ROOT, 'shot-ime.png'), clip: { x: 0, y: 0, width: 700, height: 80 } });
 await cdp.send('Input.insertText', { text: '世界' });
@@ -32,4 +32,4 @@ await browser.close(); server.kill();
 // After `clear` the prompt row is 0; the caret column follows the prompt and "echo 你好 ".
 const caretRow = Math.round(geometry.area.y / geometry.cell.h);
 console.log(`textarea at x=${geometry.area.x.toFixed(1)} y=${geometry.area.y.toFixed(1)} h=${geometry.area.h.toFixed(1)}  (cell ${geometry.cell.w.toFixed(2)}x${geometry.cell.h})`);
-console.log(`→ column ${(geometry.area.x / geometry.cell.w).toFixed(1)}, row ${caretRow}`);
+console.log(`→ column ${((geometry.area.x - geometry.pad) / geometry.cell.w).toFixed(1)}, row ${caretRow}`);

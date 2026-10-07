@@ -376,6 +376,10 @@ impl Render for Bridge {
             f64::from(self.view.read(cx).cell_width()),
         );
         publish(
+            "__herdrPaddingLeft",
+            f64::from(self.view.read(cx).padding_left()),
+        );
+        publish(
             "__herdrCellHeight",
             f64::from(self.size.map_or(0, |(_, _, height)| height)),
         );
@@ -523,6 +527,9 @@ pub fn run(config: JsValue, host: JsValue) -> Result<(), JsValue> {
             font_size,
             cell_height,
             theme,
+            // A glyph reaching left of the first column (a bullet in some
+            // fonts) would otherwise be cut off at the page's edge.
+            padding_left: 4.,
             alt_keys: true,
             copy_on_select,
             commit_text_on_key_down: true,
