@@ -17,7 +17,7 @@ interface TabCreated {
   root_pane: { pane_id: string };
 }
 interface PaneMoved {
-  move_result: { pane: { pane_id: string; tab_id: string } };
+  move_result: { pane: { pane_id: string; tab_id: string; workspace_id: string } };
 }
 
 export class Panels implements PanelHost, vscode.WebviewPanelSerializer<PanelState>, vscode.Disposable {
@@ -25,6 +25,8 @@ export class Panels implements PanelHost, vscode.WebviewPanelSerializer<PanelSta
   private readonly focused = new Set<PanePanel>();
   /** Tabs each panel has seen in a snapshot: only those can be declared gone. */
   private readonly seen = new WeakSet<PanePanel>();
+  /** Panels whose pane is moving to another tab: theirs going is no reason to close. */
+  private readonly moving = new WeakSet<PanePanel>();
   private lastFocused: PanePanel | undefined;
   private config: Promise<Omit<ViewConfig, 'tabId'>> | undefined;
   readonly extensionUri: vscode.Uri;
@@ -180,6 +182,33 @@ export class Panels implements PanelHost, vscode.WebviewPanelSerializer<PanelSta
     return this.create(this.state(machineId, tabId, paneId), info.title, column, preserveFocus);
   }
 
+  /**
+   * `pane.move` into a new workspace of its own. herdr gives the pane a new id
+   * and tab there; a panel showing it follows instead of closing with the old tab.
+   */
+  async moveToNewWorkspace(machineId: string, paneId: string): Promise<string> {
+    const machine = this.machine(machineId);
+    const panel = this.byPane(machineId, paneId);
+    if (panel) this.moving.add(panel);
+    try {
+      const moved = (await machine.request('pane.move', { pane_id: paneId, destination: { type: 'new_workspace' }, focus: false })) as PaneMoved;
+      const pane = moved.move_result.pane;
+      this.log.info(`moved pane ${paneId} into new workspace ${pane.workspace_id} as ${pane.pane_id} (tab ${pane.tab_id})`);
+      if (panel) {
+        panel.state = { ...panel.state, tabId: pane.tab_id, paneId: pane.pane_id };
+        // Its new tab may not be in a snapshot yet: not gone until it has been seen.
+        this.seen.delete(panel);
+        panel.load();
+      }
+      return pane.pane_id;
+    } finally {
+      if (panel) {
+        this.moving.delete(panel);
+        this.refreshPanel(panel);
+      }
+    }
+  }
+
   private state(machine: string, tabId: string, paneId: string): PanelState {
     return machine === LOCAL ? { tabId, paneId } : { tabId, paneId, machine };
   }
@@ -258,7 +287,7 @@ export class Panels implements PanelHost, vscode.WebviewPanelSerializer<PanelSta
     const model = machine.model;
     if (!model.ready) return;
     if (!model.tab(panel.state.tabId)) {
-      if (this.seen.has(panel)) {
+      if (this.seen.has(panel) && !this.moving.has(panel)) {
         this.log.info(`${panel.name}: tab gone from the session; closing the panel`);
         panel.panel.dispose();
       }

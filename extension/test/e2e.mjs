@@ -651,10 +651,29 @@ async function main() {
   }
   const newWorks = fresh && (await until(async () => paneText(fresh).includes('\nfrom-new'), 4000));
   record('New Terminal: tab.create + panel, input reaches the new pane', !!newWorks, `new pane ${fresh}`);
-  if (fresh) {
+  // 10b. Move it into a new workspace: herdr renames the pane (w<n>:p1), and its
+  // panel follows to the new tab instead of closing with the old one.
+  let last = fresh;
+  let frameLast = frameN;
+  if (frameN) {
+    const workspacesBefore = herdrJson('workspace', 'list').workspaces.length;
     await focusFrame(frameN);
+    await runCommand('Herdr: Move to New Workspace');
+    const movedId = await until(async () => (paneIds().includes(fresh) ? undefined : paneIds().find((id) => !before.has(id))), 8000);
+    const followed = movedId && (await paintedFrame(movedId, 15000));
+    const workspacesAfter = herdrJson('workspace', 'list').workspaces.length;
+    const kept = movedId && paneText(movedId).includes('\nfrom-new');
+    record(
+      'Move to New Workspace: the pane (same process) gets a workspace of its own; its panel follows',
+      !!followed && !!kept && workspacesAfter === workspacesBefore + 1 && movedId.split(':')[0] !== fresh.split(':')[0],
+      `${fresh} → ${movedId}; workspaces ${workspacesBefore} → ${workspacesAfter}; output kept ${!!kept}; panel follows ${!!followed}`,
+    );
+    if (movedId && followed) [last, frameLast] = [movedId, followed];
+  }
+  if (last) {
+    await focusFrame(frameLast);
     const dialog = await closePaneFromPalette();
-    const gone = await until(async () => !paneIds().includes(fresh) && !(await herdrFrames())[fresh], 8000);
+    const gone = await until(async () => !paneIds().includes(last) && !(await herdrFrames())[last], 8000);
     record('Close Pane (confirmed) terminates the pane and closes its panel', !!gone, `dialog: "${dialog}"; panes now: ${paneIds().join(', ')}`);
   }
 
@@ -797,7 +816,30 @@ async function main() {
     await shot('shot-10-settings-preview');
   }
 
-  // 15. Remote machines over real SSH (loopback and Tailscale), from the tree.
+  // 15. "Open Folder in New Window" on a workspace row opens its directory in
+  // a second VS Code window, which is closed again.
+  await page.keyboard.press('Escape');
+  await runCommand('Herdr: Focus on Workspaces View');
+  const windowsBefore = new Set(browser.contexts().flatMap((context) => context.pages()));
+  await treeRow('other').click({ button: 'right' });
+  await sleep(500);
+  await page.locator('.monaco-menu .action-label', { hasText: 'Open Folder in New Window' }).first().click({ timeout: 5000 });
+  const second = await until(async () => {
+    for (const candidate of browser.contexts().flatMap((context) => context.pages())) {
+      if (!windowsBefore.has(candidate) && /\bsubdir\b/.test(await candidate.title().catch(() => ''))) return candidate;
+    }
+  }, 30000, 250);
+  record(
+    '"Open Folder in New Window" opens the workspace\'s directory in a new window',
+    !!second,
+    `${second ? await second.title() : 'no new window'}; ${logLines(/open workspace .* folder/).pop()}`,
+  );
+  if (second) {
+    await second.keyboard.press('Control+Shift+W').catch(() => {});
+    await until(async () => second.isClosed() || !browser.contexts().flatMap((context) => context.pages()).includes(second), 10000, 250);
+  }
+
+  // 16. Remote machines over real SSH (loopback and Tailscale), from the tree.
   await page.keyboard.press('Escape');
   await runCommand('Herdr: Focus on Workspaces View');
   const { run: remote } = await import('./remote.mjs');

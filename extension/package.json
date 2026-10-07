@@ -73,6 +73,22 @@
         "icon": "$(trash)"
       },
       {
+        "command": "herdr.moveToNewWorkspace",
+        "title": "Move to New Workspace",
+        "category": "Herdr"
+      },
+      {
+        "command": "herdr.openWorkspaceInNewWindow",
+        "title": "Open Folder in New Window",
+        "category": "Herdr",
+        "icon": "$(empty-window)"
+      },
+      {
+        "command": "herdr.openWorkspaceInThisWindow",
+        "title": "Open Folder in This Window",
+        "category": "Herdr"
+      },
+      {
         "command": "herdr.newWorkspace",
         "title": "New Workspace",
         "category": "Herdr",
@@ -238,6 +254,11 @@
           "group": "2_edit@1"
         },
         {
+          "command": "herdr.moveToNewWorkspace",
+          "when": "view == herdr.sessions && viewItem == herdrPane",
+          "group": "2_edit@2"
+        },
+        {
           "command": "herdr.closePane",
           "when": "view == herdr.sessions && viewItem == herdrPane",
           "group": "3_close@1"
@@ -256,6 +277,16 @@
           "command": "herdr.newTerminalToSide",
           "when": "view == herdr.sessions && viewItem == herdrWorkspace",
           "group": "1_new@2"
+        },
+        {
+          "command": "herdr.openWorkspaceInNewWindow",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "1_window@1"
+        },
+        {
+          "command": "herdr.openWorkspaceInThisWindow",
+          "when": "view == herdr.sessions && viewItem == herdrWorkspace",
+          "group": "1_window@2"
         },
         {
           "command": "herdr.renameWorkspace",

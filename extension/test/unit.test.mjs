@@ -22,7 +22,7 @@ before(async () => {
   const entry = join(work, 'entry.ts');
   writeFileSync(
     entry,
-    ['keys', 'socket', 'fonts', 'transport', 'links', 'api', 'model', 'machines', 'colors/color', 'colors/scheme', 'colors/formats', 'colors/optimize']
+    ['keys', 'socket', 'fonts', 'transport', 'links', 'api', 'model', 'machines', 'folders', 'colors/color', 'colors/scheme', 'colors/formats', 'colors/optimize']
       .map((name) => `export * from ${JSON.stringify(join(root, 'src', name))};`)
       .join('\n'),
   );
@@ -282,6 +282,26 @@ describe('machines', () => {
     } finally {
       process.env.PATH = path;
     }
+  });
+});
+
+describe('workspace folders', () => {
+  const decode = (authority) => JSON.parse(Buffer.from(authority.slice('ssh-remote+'.length), 'hex').toString());
+  it('names the ssh target as Remote - SSH does', () => {
+    assert.equal(m.sshRemoteAuthority('devbox'), 'ssh-remote+devbox');
+    assert.equal(m.sshRemoteAuthority('dev@devbox'), 'ssh-remote+dev@devbox');
+    assert.equal(m.sshRemoteAuthority('ssh://dev@devbox'), 'ssh-remote+dev@devbox');
+    assert.deepEqual(decode(m.sshRemoteAuthority('ssh://dev@127.0.0.1:2222')), { hostName: '127.0.0.1', user: 'dev', port: 2222 });
+    assert.deepEqual(decode(m.sshRemoteAuthority('ssh://[::1]:22')), { hostName: '::1', port: 22 });
+    assert.deepEqual(decode(m.sshRemoteAuthority('ssh://dev@[fe80::1]')), { hostName: 'fe80::1', user: 'dev' });
+  });
+  it("prefers herdr's directory for the workspace, else its focused pane's", () => {
+    const pane = (id, focused, cwd, foreground) => ({ pane: { pane_id: id, focused, cwd, foreground_cwd: foreground } });
+    const model = { panes: () => [pane('w1:p1', false, '/a', '/a/sub'), pane('w1:p2', true, '/b', null)] };
+    assert.equal(m.workspaceDirectory(model, { workspace_id: 'w1', new_workspace_cwd: '/repo' }), '/repo');
+    assert.equal(m.workspaceDirectory(model, { workspace_id: 'w1', new_workspace_cwd: '' }), '/b');
+    assert.equal(m.workspaceDirectory({ panes: () => [pane('w1:p1', false, '/a', '/a/sub')] }, { workspace_id: 'w1' }), '/a/sub');
+    assert.equal(m.workspaceDirectory({ panes: () => [] }, { workspace_id: 'w1' }), undefined);
   });
 });
 

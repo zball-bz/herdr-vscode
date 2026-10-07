@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { folderUri, REMOTE_SSH, workspaceDirectory } from './folders';
 import { Log } from './log';
 import { defaultName, LOCAL, type Machine, machineId, Machines, parseMachines } from './machines';
 import { VIEW_TYPE } from './panel';
@@ -117,6 +118,25 @@ export function activate(context: vscode.ExtensionContext): void {
     if (machine) await panels.newTerminal(machine.id, workspace?.id, column);
   };
 
+  /** Opens the workspace's directory as a VS Code folder, in a new window or this one. */
+  const openWorkspaceFolder = async (node: Node | undefined, newWindow: boolean) => {
+    const target = workspaceOf(node);
+    const workspace = target?.machine.model.workspace(target.id);
+    if (!target || !workspace) return;
+    const directory = workspaceDirectory(target.machine.model, workspace);
+    if (!directory) throw new Error(`workspace "${workspace.label}" has no known directory`);
+    // In a remote window the extension runs on that host and cannot see this one's extensions.
+    if (!target.machine.local && vscode.env.remoteName === undefined && !vscode.extensions.getExtension(REMOTE_SSH)) {
+      const show = 'Show Extension';
+      const choice = await vscode.window.showErrorMessage(`herdr: opening a folder on ${target.machine.name} needs the Remote - SSH extension.`, show);
+      if (choice === show) await vscode.commands.executeCommand('extension.open', REMOTE_SSH);
+      return;
+    }
+    const uri = folderUri(target.machine, directory);
+    log.info(`open workspace ${workspace.workspace_id} folder ${uri.toString()} in ${newWindow ? 'a new' : 'this'} window`);
+    await vscode.commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: newWindow });
+  };
+
   /** Asks for an ssh target, session and name; checks the login; adds it to herdr.machines. */
   const addMachine = async () => {
     const target = (
@@ -218,6 +238,17 @@ export function activate(context: vscode.ExtensionContext): void {
       const answer = await vscode.window.showWarningMessage(`Close herdr pane "${info.title}"? Its process is terminated.`, { modal: true }, close);
       if (answer === close) await pane.machine.request('pane.close', { pane_id: info.pane.pane_id });
     }),
+    register('herdr.moveToNewWorkspace', async (node?: Node) => {
+      const pane = await paneOf(node);
+      const info = pane?.machine.model.pane(pane.id);
+      if (!pane || !info) return;
+      if (pane.machine.model.panes(info.pane.workspace_id).length < 2) {
+        const label = pane.machine.model.workspace(info.pane.workspace_id)?.label ?? info.pane.workspace_id;
+        void vscode.window.showInformationMessage(`herdr: "${info.title}" is already the only pane in workspace "${label}".`);
+        return;
+      }
+      await panels.moveToNewWorkspace(pane.machine.id, info.pane.pane_id);
+    }),
     register('herdr.newWorkspace', async (node?: Node) => {
       const machine = await machineOf(node);
       if (!machine) return;
@@ -249,6 +280,8 @@ export function activate(context: vscode.ExtensionContext): void {
       );
       if (answer === close) await target.machine.request('workspace.close', { workspace_id: workspace.workspace_id });
     }),
+    register('herdr.openWorkspaceInNewWindow', (node?: Node) => openWorkspaceFolder(node, true)),
+    register('herdr.openWorkspaceInThisWindow', (node?: Node) => openWorkspaceFolder(node, false)),
     register('herdr.focus', async () => {
       const current = panels.current();
       if (current) return current.panel.reveal(undefined, false);

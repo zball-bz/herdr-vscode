@@ -47,6 +47,8 @@ HERDR_E2E_PERF=1 HERDR_E2E_GPU=1 node test/e2e.mjs  # 性能：打开/切回面�
 - **打开 pane**：单击打开；行内按钮/右键“Open Pane to the Side”在旁边打开。若该 pane 所在 tab 还有别的 pane，先 `pane.move` 到新 tab；若已有面板显示这个 tab，只是切换过去（同一 tab 两个视图会争 pty 尺寸）。
 - **关闭面板只是分离**，pane 继续运行；**Close Pane (Terminate)**（确认后）才会结束进程。pane 结束或被关时面板自动关闭（herdr-web 的 `tabClosed`）。
 - **New Terminal**（工作区行内 `+`、视图标题栏 `+`、命令面板、面板标题栏的分栏按钮）= `tab.create` 后打开。
+- **Move to New Workspace**（pane 右键）= `pane.move` 到一个新工作区，进程不变。herdr 会给它新的 pane id 和 tab，显示它的面板跟过去，不会关闭。工作区里只剩这一个 pane 时不移动。
+- **Open Folder in New Window / in This Window**（工作区右键）用 VS Code 打开该工作区的目录（herdr 的 `new_workspace_cwd`，没有时取其聚焦 pane 的目录）。远端机器上的工作区经 Remote - SSH 打开：目标按原样作为 `ssh-remote+…`，带端口的 `ssh://` 用 Remote - SSH 的十六进制 JSON 形式；没装 Remote - SSH 时提示安装。
 - 重载窗口后面板通过 WebviewPanelSerializer 按 `{tabId, paneId}` 重新挂接。
 - 面板标题 = pane 标签 / agent 名 / 当前目录名，图标随 agent 状态变化。
 - **滚动条**：样式同 Konsole/Qt 的桌面滚动条，贴在面板右边缘，约 14 px 宽，由上箭头按钮、轨道、滑块和下箭头按钮组成。
@@ -176,7 +178,7 @@ Workspaces 视图标题栏的齿轮按钮（或命令 **Herdr: Settings**）打�
 
 为何不用 `activeWebviewPanelId == 'herdr.pane'`：它在面板内为真，但焦点在侧边栏/树里、而活动编辑器仍是 herdr 面板时也为真，会把在侧边栏按的 Ctrl+B 等吞掉。`focusedView` 只适用于视图，不适用于编辑器面板。
 
-命令：Herdr: New Terminal / New Terminal to the Side / Open Pane / Open Pane to the Side / Rename Pane / Close Pane (Terminate) / New Workspace / Rename Workspace / Close Workspace / Focus Terminal / Reconnect / Reload Panels / Copy / Paste / Find / Find Next / Find Previous / Close Find / Clear Selection / Scroll to Bottom。
+命令：Herdr: New Terminal / New Terminal to the Side / Open Pane / Open Pane to the Side / Rename Pane / Move to New Workspace / Close Pane (Terminate) / New Workspace / Rename Workspace / Open Folder in New Window / Open Folder in This Window / Close Workspace / Focus Terminal / Reconnect / Reload Panels / Copy / Paste / Find / Find Next / Find Previous / Close Find / Clear Selection / Scroll to Bottom。
 
 ## 消息协议（扩展 ⇄ webview）
 
