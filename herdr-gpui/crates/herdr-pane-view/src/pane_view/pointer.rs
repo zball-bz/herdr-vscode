@@ -7,8 +7,8 @@
 use super::{LinkActivation, PaneView, PaneViewEvent};
 use crate::terminal::{RowTarget, Selection, WheelTarget, pane_link_at, wheel_target};
 use gpui::{
-    Context, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, ScrollWheelEvent, Window, px,
+    Bounds, Context, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, Pixels, Point, ScrollWheelEvent, Window, point, px, size,
 };
 use herdr_protocol::{ClientMouseButton, ClientMouseKind};
 use std::ops::Range;
@@ -43,11 +43,21 @@ impl PaneView {
         (f32::from(local.x), f32::from(local.y))
     }
 
+    /// `position` over the grid, with the padding left of it taken as the first
+    /// column, so a press at the very edge still selects or reaches the app.
+    fn over_grid(&self, position: Point<Pixels>) -> Option<Point<Pixels>> {
+        let padding = px(self.padding_left);
+        let reach = Bounds::new(
+            point(self.bounds.left() - padding, self.bounds.top()),
+            size(self.bounds.size.width + padding, self.bounds.size.height),
+        );
+        reach
+            .contains(&position)
+            .then(|| point(position.x.max(self.bounds.left()), position.y))
+    }
+
     fn hit(&self, position: Point<Pixels>) -> Option<WheelTarget> {
-        if !self.bounds.contains(&position) {
-            return None;
-        }
-        let (x, y) = self.local(position);
+        let (x, y) = self.local(self.over_grid(position)?);
         wheel_target(
             self.surface.as_deref()?,
             x,
@@ -165,7 +175,10 @@ impl PaneView {
             cx.stop_propagation();
             return;
         }
-        let Some(hit) = self.hit(event.position) else {
+        let Some(position) = self.over_grid(event.position) else {
+            return;
+        };
+        let Some(hit) = self.hit(position) else {
             return;
         };
         if hit.mouse_reporting && !event.modifiers.shift {
@@ -184,7 +197,7 @@ impl PaneView {
         if event.button == MouseButton::Left
             && let Some(surface) = self.surface.as_deref()
         {
-            let (x, y) = self.local(event.position);
+            let (x, y) = self.local(position);
             self.selection = Selection::begin(
                 surface,
                 x,

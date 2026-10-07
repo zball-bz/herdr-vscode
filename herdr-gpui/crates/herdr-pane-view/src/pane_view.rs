@@ -44,6 +44,10 @@ pub struct PaneViewStyle {
     pub font_size: f32,
     pub cell_height: f32,
     pub theme: Theme,
+    /// Space between the view's left edge and the grid, in the terminal
+    /// background, so a glyph reaching left of the first column (a bullet in
+    /// some fonts) is not cut off at the edge.
+    pub padding_left: f32,
     /// Whether Option/Alt combinations reach the pane as Meta keys.
     pub alt_keys: bool,
     /// Copy a mouse selection when it is released, as Herdr's `copy_on_select`.
@@ -134,6 +138,9 @@ pub struct PaneView {
     cell_width: f32,
     /// The style's cell height, snapped to device pixels when painted.
     cell_height: f32,
+    /// The style's left padding, snapped to device pixels when painted so the
+    /// grid starts on one.
+    padding_left: f32,
     reported: Option<(ClientSurfaceSize, u32, u32)>,
     /// IME composition not yet committed.
     marked: String,
@@ -174,6 +181,7 @@ impl PaneView {
     pub fn new(style: PaneViewStyle, cx: &mut Context<Self>) -> Self {
         Self {
             cell_height: style.cell_height,
+            padding_left: style.padding_left,
             style,
             painter: Rc::new(RefCell::new(TerminalPainter::default())),
             focus: cx.focus_handle(),
@@ -308,6 +316,11 @@ impl PaneView {
     /// The measured cell width in logical pixels, once painted.
     pub fn cell_width(&self) -> f32 {
         self.cell_width
+    }
+
+    /// The left padding in logical pixels as painted, where the grid starts.
+    pub fn padding_left(&self) -> f32 {
+        self.padding_left
     }
 
     /// Where keyboard input goes: an open popup, else the focused pane.
@@ -450,6 +463,11 @@ impl Render for PaneView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let style = self.style.clone();
         self.cell_height = snap_to_device(style.cell_height, window.scale_factor());
+        self.padding_left = if style.padding_left > 0. {
+            snap_to_device(style.padding_left, window.scale_factor())
+        } else {
+            0.
+        };
         self.painter.borrow_mut().set_appearance(
             style.font_size,
             self.cell_height,
@@ -504,6 +522,7 @@ impl Render for PaneView {
             .id("herdr-pane")
             .relative()
             .size_full()
+            .pl(gpui::px(self.padding_left))
             // Chrome such as the find bar inherits the terminal font: a browser
             // build has no system UI font to fall back to.
             .font(style.font.clone())

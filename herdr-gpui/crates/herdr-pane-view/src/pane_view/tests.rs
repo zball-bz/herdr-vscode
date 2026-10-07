@@ -67,6 +67,7 @@ fn style() -> PaneViewStyle {
         font_size: 14.,
         cell_height: CELL_HEIGHT,
         theme: Theme::default(),
+        padding_left: 0.,
         alt_keys: true,
         copy_on_select: false,
         commit_text_on_key_down: false,
@@ -365,5 +366,6 @@ fn the_browser_option_commits_plain_keys_from_the_key_event(cx: &mut TestAppCont
 
 mod cell_metrics;
 mod link_hover;
+mod padding;
 mod scrollbar;
 mod strip;
